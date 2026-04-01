@@ -6,6 +6,22 @@ import { spawn } from 'node:child_process'
 type OkOrErr = { ok: true } | { ok: false; error: string }
 
 export function registerShellIpc() {
+  ipcMain.handle('shell:openExternal', async (_e: IpcMainInvokeEvent, url: unknown) => {
+    if (typeof url !== 'string' || !url.trim()) {
+      return { ok: false, error: 'Invalid URL.' }
+    }
+    const u = url.trim()
+    if (!u.startsWith('https://') && !u.startsWith('http://')) {
+      return { ok: false, error: 'Only http(s) URLs are allowed.' }
+    }
+    try {
+      await shell.openExternal(u)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message || 'Failed to open URL.' }
+    }
+  })
+
   ipcMain.handle('shell:openPathInOsFinder', async (_e: IpcMainInvokeEvent, fullPath: string) => {
     if (typeof fullPath !== 'string' || !fullPath.trim()) {
       return { ok: false, error: 'Invalid path.' }

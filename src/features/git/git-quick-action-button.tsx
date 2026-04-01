@@ -14,6 +14,7 @@ import {
   ArrowUpFromLine,
   GitBranchPlus,
   GitCommitHorizontal,
+  GitPullRequestCreateArrow,
   Github,
   Loader2,
   PlusSquare,
@@ -26,6 +27,7 @@ const LABEL: Record<GitQuickActionKind, string> = {
   stage: 'Stage',
   commit: 'Commit',
   push: 'Push',
+  createPr: 'Create PR',
 }
 
 type Props = {
@@ -37,11 +39,19 @@ export function GitQuickActionButton({ className }: Props) {
   const cwd = useGitCwdForVisibleWorkspace()
   const wt = useGitFocusedCheckoutStore((s) => s.wt)
   const wtCwd = useGitFocusedCheckoutStore((s) => s.wtCwd)
+  const createPrCompareUrl = useGitFocusedCheckoutStore((s) => s.createPrCompareUrl)
   const wtForAction = useMemo(() => {
     if (!cwd) return null
     return normalizeGitCwdKey(cwd) === normalizeGitCwdKey(wtCwd) ? wt : null
   }, [cwd, wt, wtCwd])
-  const action = useMemo(() => resolveGitQuickAction(wtForAction), [wtForAction])
+  const effectiveCreatePrUrl = useMemo(() => {
+    if (!cwd || normalizeGitCwdKey(cwd) !== normalizeGitCwdKey(wtCwd)) return null
+    return createPrCompareUrl
+  }, [cwd, wtCwd, createPrCompareUrl])
+  const action = useMemo(
+    () => resolveGitQuickAction(wtForAction, effectiveCreatePrUrl),
+    [wtForAction, effectiveCreatePrUrl],
+  )
 
   const [commitOpen, setCommitOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
@@ -75,6 +85,8 @@ export function GitQuickActionButton({ className }: Props) {
       <GitBranchPlus className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'publish' ? (
       <Github className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
+    ) : action === 'createPr' ? (
+      <GitPullRequestCreateArrow className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'pull' ? (
       <ArrowDownToLine className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'stage' ? (
@@ -106,6 +118,16 @@ export function GitQuickActionButton({ className }: Props) {
       case 'push':
         void runOp('Pushing to origin', () => window.mux.git.push(cwd))
         break
+      case 'createPr': {
+        const url = effectiveCreatePrUrl
+        if (!url) return
+        void runWithStatusActivity({ domain: 'github', label: 'Opening pull request', detail: url }, async () => {
+          const r = await window.mux.shell.openExternal(url)
+          if (!r.ok) window.alert(r.error)
+          return r
+        })
+        break
+      }
     }
   }
 

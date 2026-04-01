@@ -1,7 +1,7 @@
 import { ipcMain, shell } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 
-import { gitAddRemote } from './git-ipc'
+import { gitAddRemote, gitGithubCompareBasics } from './git-ipc'
 import { getGithubOAuthClientId } from './github-oauth-client-id'
 import {
   clearGithubToken,
@@ -112,6 +112,58 @@ export async function pollGithubDeviceLogin(deviceCode: string): Promise<PollDev
 
   const desc = data.error_description != null ? String(data.error_description) : err || 'Unknown error'
   return { status: 'error', error: desc }
+}
+
+async function githubApiGetJson<T>(
+  pathname: string,
+  token: string | null,
+): Promise<{ ok: true; data: T } | { ok: false; status: number }> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`https://api.github.com${pathname}`, { headers })
+  if (!res.ok) return { ok: false, status: res.status }
+  return { ok: true, data: (await res.json()) as T }
+}
+
+export type GithubCreatePrContext =
+  | { applicable: false }
+  | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+
+export async function githubGetCreatePrContext(cwd: string): Promise<GithubCreatePrContext> {
+  const b = await gitGithubCompareBasics(cwd.trim())
+  if (b.kind !== 'ok') {
+    return { applicable: false }
+  }
+
+  const token = loadGithubToken()
+  const { owner, repo, branch } = b
+
+  let defaultBranch = 'main'
+  const repoRes = await githubApiGetJson<{ default_branch?: string }>(`/repos/${owner}/${repo}`, token)
+  if (repoRes.ok && typeof repoRes.data.default_branch === 'string' && repoRes.data.default_branch) {
+    defaultBranch = repoRes.data.default_branch
+  }
+
+  if (branch === defaultBranch) {
+    return { applicable: false }
+  }
+
+  const compareUrl = `https://github.com/${owner}/${repo}/compare/${encodeURIComponent(defaultBranch)}...${encodeURIComponent(branch)}?expand=1`
+
+  let hasOpenPr = false
+  const headQ = encodeURIComponent(`${owner}:${branch}`)
+  const pullsRes = await githubApiGetJson<{ number: number }[]>(
+    `/repos/${owner}/${repo}/pulls?state=open&head=${headQ}`,
+    token,
+  )
+  if (pullsRes.ok && Array.isArray(pullsRes.data)) {
+    hasOpenPr = pullsRes.data.length > 0
+  }
+
+  return { applicable: true, hasOpenPr, compareUrl }
 }
 
 async function fetchGithubUser(token: string): Promise<{ login: string } | null> {
@@ -285,5 +337,12 @@ export function registerGithubIpc() {
       'https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow',
     )
     return { ok: true as const }
+  })
+
+  ipcMain.handle('github:getCreatePrContext', async (_e: IpcMainInvokeEvent, rawCwd: unknown) => {
+    if (typeof rawCwd !== 'string' || !rawCwd.trim()) {
+      return { applicable: false as const }
+    }
+    return githubGetCreatePrContext(rawCwd.trim())
   })
 }

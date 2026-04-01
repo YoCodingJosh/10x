@@ -25,6 +25,7 @@ import {
   GitBranch,
   GitBranchPlus,
   GitCommitHorizontal,
+  GitPullRequestCreateArrow,
   Github,
   PlusSquare,
 } from 'lucide-react'
@@ -34,6 +35,8 @@ export function ActivityBarGitMenu() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [hasOrigin, setHasOrigin] = useState<boolean | null>(null)
+  /** Mux worktree + GitHub + no open PR → compare URL for PR form */
+  const [createPrMenu, setCreatePrMenu] = useState<{ compareUrl: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [commitOpen, setCommitOpen] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
@@ -43,8 +46,10 @@ export function ActivityBarGitMenu() {
     if (!gitCwd) {
       setIsRepo(null)
       setHasOrigin(null)
+      setCreatePrMenu(null)
       return
     }
+    setCreatePrMenu(null)
     const o = await window.mux.git.remoteOriginStatus(gitCwd)
     if (!o.isRepo) {
       setIsRepo(false)
@@ -53,6 +58,10 @@ export function ActivityBarGitMenu() {
     }
     setIsRepo(true)
     setHasOrigin(o.hasOrigin)
+    const pr = await window.mux.github.getCreatePrContext(gitCwd)
+    if (pr.applicable && !pr.hasOpenPr) {
+      setCreatePrMenu({ compareUrl: pr.compareUrl })
+    }
   }, [gitCwd])
 
   const onMenuOpenChange = useCallback(
@@ -191,6 +200,22 @@ export function ActivityBarGitMenu() {
                     <ArrowUpFromLine className="size-3.5 shrink-0 opacity-70" aria-hidden />
                     Push
                   </DropdownMenuItem>
+                  {createPrMenu ? (
+                    <DropdownMenuItem
+                      disabled={busy}
+                      className="gap-2"
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        setMenuOpen(false)
+                        void window.mux.shell.openExternal(createPrMenu.compareUrl).then((r) => {
+                          if (!r.ok) window.alert(r.error)
+                        })
+                      }}
+                    >
+                      <GitPullRequestCreateArrow className="size-3.5 shrink-0 opacity-70" aria-hidden />
+                      Create pull request…
+                    </DropdownMenuItem>
+                  ) : null}
                 </>
               ) : (
                 <DropdownMenuItem

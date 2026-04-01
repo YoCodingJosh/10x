@@ -1,5 +1,12 @@
 /** Primary action for the focused checkout quick control (status bar / rail). */
-export type GitQuickActionKind = 'init' | 'publish' | 'pull' | 'stage' | 'commit' | 'push'
+export type GitQuickActionKind =
+  | 'init'
+  | 'publish'
+  | 'pull'
+  | 'stage'
+  | 'commit'
+  | 'push'
+  | 'createPr'
 
 type Wt =
   | { isRepo: false }
@@ -18,11 +25,13 @@ type Wt =
     }
 
 /**
- * Uses `workingTreeSummary` only (includes `hasOrigin`, upstream, detached).
- * Local changes win over Publish; Push is offered when `origin` exists but there is no upstream
- * yet (first push links the branch), not only when `ahead > 0`.
+ * Uses `workingTreeSummary` and optional `createPrCompareUrl` from the focused-checkout store
+ * (GitHub compare link when a Mux worktree branch is fully pushed and has no open PR).
  */
-export function resolveGitQuickAction(wt: Wt | null): 'loading' | GitQuickActionKind | 'idle' {
+export function resolveGitQuickAction(
+  wt: Wt | null,
+  createPrCompareUrl?: string | null,
+): 'loading' | GitQuickActionKind | 'idle' {
   if (wt === null) return 'loading'
   if (!wt.isRepo) return 'init'
 
@@ -34,5 +43,6 @@ export function resolveGitQuickAction(wt: Wt | null): 'loading' | GitQuickAction
   if (!s.hasOrigin) return 'publish'
   if (s.ahead > 0) return 'push'
   if (!s.detached && s.upstreamShort == null) return 'push'
+  if (createPrCompareUrl) return 'createPr'
   return 'idle'
 }

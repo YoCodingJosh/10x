@@ -13,6 +13,7 @@ declare global {
         pickWorkspace: () => Promise<string | null>
       }
       shell: {
+        openExternal: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>
         openPathInOsFinder: (fullPath: string) => Promise<{ ok: true } | { ok: false; error: string }>
         openInCursor: (folderPath: string) => Promise<{ ok: true } | { ok: false; error: string }>
       }
@@ -60,6 +61,7 @@ declare global {
                 behind: number
                 upstreamGone: boolean
                 hasOrigin: boolean
+                isMuxWorktree: boolean
                 stagedCount: number
                 unstagedCount: number
                 untrackedCount: number
@@ -114,6 +116,12 @@ declare global {
         openNewRepoPage: () => Promise<{ ok: true }>
         openOAuthAppSettings: () => Promise<{ ok: true }>
         openDeviceHelp: () => Promise<{ ok: true }>
+        getCreatePrContext: (
+          cwd: string,
+        ) => Promise<
+          | { applicable: false }
+          | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+        >
       }
       pty: {
         create: (opts: {

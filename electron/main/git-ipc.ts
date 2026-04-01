@@ -57,7 +57,7 @@ export type GitClassifyResult =
  * Turn `git remote get-url` output into an https URL for opening in a browser.
  * Handles https, git@host:path, ssh://, and git:// remotes.
  */
-function gitRemoteUrlToHttpsUrl(remote: string): string | null {
+export function gitRemoteUrlToHttpsUrl(remote: string): string | null {
   const s = remote.trim()
   if (!s) return null
 
@@ -235,6 +235,8 @@ export type GitWorkingTreeSummary = {
   upstreamGone: boolean
   /** Whether `git remote get-url origin` succeeds (same signal as `gitRemoteOriginStatus`). */
   hasOrigin: boolean
+  /** True when this checkout lives under ~/10x-worktrees (Mux agent worktree). */
+  isMuxWorktree: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -245,7 +247,7 @@ export type GitWorkingTreeSummaryResult = { isRepo: false } | { isRepo: true; su
 
 function parseGitStatusBranchLine(line: string): Omit<
   GitWorkingTreeSummary,
-  'hasOrigin' | 'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
+  'hasOrigin' | 'isMuxWorktree' | 'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
 > {
   const emptyUpstream = {
     branchLabel: '?',
@@ -418,9 +420,10 @@ export async function gitWorkingTreeSummary(rawPath: string): Promise<GitWorking
   const meta = parseGitStatusBranchLine(branchLine)
   const counts = parseGitStatusFileLines(fileLines)
   const hasOrigin = await gitRepoHasOriginRemote(root)
+  const isMuxWorktree = isUnderMuxWorktreesDir(root)
   return {
     isRepo: true,
-    summary: { ...meta, ...counts, hasOrigin },
+    summary: { ...meta, ...counts, hasOrigin, isMuxWorktree },
   }
 }
 
@@ -462,6 +465,46 @@ export async function gitRemoteOriginStatus(rawPath: string): Promise<GitRemoteO
   }
   const hasOrigin = await gitRepoHasOriginRemote(classified.toplevel)
   return { isRepo: true, hasOrigin }
+}
+
+export type GitGithubCompareBasicsResult =
+  | { kind: 'na' }
+  | { kind: 'err'; error: string }
+  | { kind: 'ok'; owner: string; repo: string; branch: string }
+
+function parseGithubOwnerRepoFromWebUrl(webUrl: string): { owner: string; repo: string } | null {
+  try {
+    const u = new URL(webUrl)
+    if (u.hostname.toLowerCase() !== 'github.com') return null
+    const parts = u.pathname.split('/').filter(Boolean)
+    if (parts.length < 2) return null
+    return { owner: parts[0]!, repo: parts[1]!.replace(/\.git$/i, '') }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Owner/repo/branch for opening GitHub compare / PR flow. Only for Mux worktrees + github.com origin.
+ */
+export async function gitGithubCompareBasics(rawPath: string): Promise<GitGithubCompareBasicsResult> {
+  const classified = await gitClassify(rawPath.trim())
+  if (!classified.isRepo) return { kind: 'na' }
+  if (!isUnderMuxWorktreesDir(classified.toplevel)) return { kind: 'na' }
+
+  const br = await runGit(classified.toplevel, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  if (!br.ok || !br.stdout?.trim()) return { kind: 'err', error: 'Could not read current branch.' }
+  const branch = br.stdout.trim()
+  if (branch === 'HEAD') return { kind: 'err', error: 'Detached HEAD.' }
+
+  const rem = await runGit(classified.toplevel, ['remote', 'get-url', 'origin'])
+  if (!rem.ok || !rem.stdout?.trim()) return { kind: 'err', error: 'No origin remote.' }
+
+  const httpsUrl = gitRemoteUrlToHttpsUrl(rem.stdout)
+  if (!httpsUrl) return { kind: 'err', error: 'Could not parse origin URL.' }
+  const parsed = parseGithubOwnerRepoFromWebUrl(httpsUrl)
+  if (!parsed) return { kind: 'err', error: 'Origin is not a github.com repository.' }
+  return { kind: 'ok', owner: parsed.owner, repo: parsed.repo, branch }
 }
 
 export async function gitClassify(cwd: string): Promise<GitClassifyResult> {

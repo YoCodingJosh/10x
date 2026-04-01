@@ -7,6 +7,7 @@ export type GitWorkingTreeSummaryDTO = {
   behind: number
   upstreamGone: boolean
   hasOrigin: boolean
+  isMuxWorktree: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -27,6 +28,23 @@ const ok = 'text-emerald-600 dark:text-emerald-400'
 const info = 'text-sky-600 dark:text-sky-400'
 const behindC = 'text-orange-600 dark:text-orange-400'
 const muted = 'text-muted-foreground'
+
+/** Clean, fully synced branch on a Mux worktree: ready to open compare / PR in browser. */
+export function summaryEligibleForCreatePrFetch(s: GitWorkingTreeSummaryDTO): boolean {
+  return (
+    s.isMuxWorktree &&
+    s.hasOrigin &&
+    !s.detached &&
+    s.conflictCount === 0 &&
+    s.stagedCount === 0 &&
+    s.unstagedCount === 0 &&
+    s.untrackedCount === 0 &&
+    s.upstreamShort != null &&
+    s.ahead === 0 &&
+    s.behind === 0 &&
+    !s.upstreamGone
+  )
+}
 
 function upstreamLabel(u: string | null): string {
   if (!u) return 'remote'

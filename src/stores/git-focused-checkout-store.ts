@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import {
   presentWorkingTreeSummary,
+  summaryEligibleForCreatePrFetch,
   type WorkingTreePresentation,
 } from '@/features/git/describe-working-tree'
 import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
@@ -21,6 +22,8 @@ type GitFocusedCheckoutState = {
   wt: WtResult | null
   /** `cwd` that `wt` was fetched for (compare with `useGitCwdForVisibleWorkspace()`). */
   wtCwd: string | null
+  /** GitHub compare URL for “Create PR” when branch is pushed and no open PR (Mux worktrees). */
+  createPrCompareUrl: string | null
   loadState: GitFocusedCheckoutLoadState
   /** Call when `useGitCwdForVisibleWorkspace` changes. */
   syncFocusCwd: (cwd: string | null) => void
@@ -33,11 +36,13 @@ type GitFocusedCheckoutState = {
  * finishing after a refresh and overwriting fresh `hasOrigin` with stale data).
  */
 let focusedCheckoutGitTickSerial = 0
+let createPrContextSerial = 0
 
 export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, get) => ({
   focusCwd: null,
   wt: null,
   wtCwd: null,
+  createPrCompareUrl: null,
   loadState: { kind: 'idle' },
 
   syncFocusCwd(cwd) {
@@ -46,6 +51,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
       focusCwd: cwd,
       wt: null,
       wtCwd: null,
+      createPrCompareUrl: null,
       loadState: !cwd ? { kind: 'idle' } : { kind: 'loading' },
     })
     void get().tick({ showSpinner: true })
@@ -54,7 +60,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
   tick: async (opts) => {
     const cwd = get().focusCwd
     if (!cwd) {
-      set({ wt: null, wtCwd: null, loadState: { kind: 'idle' } })
+      set({ wt: null, wtCwd: null, createPrCompareUrl: null, loadState: { kind: 'idle' } })
       return
     }
     const cwdKey = normalizeGitCwdKey(cwd)
@@ -76,6 +82,22 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
         kind: 'ok',
         presentation: presentWorkingTreeSummary(r.summary),
       },
+    })
+
+    if (!r.isRepo || !summaryEligibleForCreatePrFetch(r.summary)) {
+      createPrContextSerial += 1
+      set({ createPrCompareUrl: null })
+      return
+    }
+    const prSn = ++createPrContextSerial
+    void window.mux.github.getCreatePrContext(cwd).then((ctx) => {
+      if (normalizeGitCwdKey(get().focusCwd) !== cwdKey) return
+      if (prSn !== createPrContextSerial) return
+      if (ctx.applicable && !ctx.hasOpenPr) {
+        set({ createPrCompareUrl: ctx.compareUrl })
+      } else {
+        set({ createPrCompareUrl: null })
+      }
     })
   },
 }))

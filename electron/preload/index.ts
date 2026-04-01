@@ -28,6 +28,7 @@ type GitWorkingTreeSummary = {
   behind: number
   upstreamGone: boolean
   hasOrigin: boolean
+  isMuxWorktree: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -76,6 +77,10 @@ type GithubCreateRepo =
 
 type ShellResult = { ok: true } | { ok: false; error: string }
 
+type GithubCreatePrContext =
+  | { applicable: false }
+  | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -88,6 +93,7 @@ const api = {
       ipcRenderer.invoke('dialog:pickWorkspace'),
   },
   shell: {
+    openExternal: (url: string): Promise<ShellResult> => ipcRenderer.invoke('shell:openExternal', url),
     openPathInOsFinder: (fullPath: string): Promise<ShellResult> =>
       ipcRenderer.invoke('shell:openPathInOsFinder', fullPath),
     openInCursor: (folderPath: string): Promise<ShellResult> =>
@@ -143,6 +149,8 @@ const api = {
     openOAuthAppSettings: (): Promise<{ ok: true }> =>
       ipcRenderer.invoke('github:openOAuthAppSettings'),
     openDeviceHelp: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:openDeviceHelp'),
+    getCreatePrContext: (cwd: string): Promise<GithubCreatePrContext> =>
+      ipcRenderer.invoke('github:getCreatePrContext', cwd),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>
