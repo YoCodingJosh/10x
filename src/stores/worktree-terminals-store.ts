@@ -15,6 +15,7 @@ type State = {
   activeShellId: Record<string, string | null>
   addShell: (workspaceId: string, agentTabId: string) => void
   removeShell: (workspaceId: string, agentTabId: string, shellId: string) => void
+  renameShell: (workspaceId: string, agentTabId: string, shellId: string, label: string) => void
   setActiveShell: (workspaceId: string, agentTabId: string, shellId: string | null) => void
   reconcileActiveShell: (workspaceId: string, agentTabId: string) => void
   purgeAgentTab: (workspaceId: string, agentTabId: string) => void
@@ -37,6 +38,22 @@ export const useWorktreeTerminalsStore = create<State>((set, get) => ({
     set((s) => ({
       byKey: { ...s.byKey, [key]: nextList },
       activeShellId: { ...s.activeShellId, [key]: tab.id },
+    }))
+  },
+
+  renameShell: (workspaceId, agentTabId, shellId, label) => {
+    const key = worktreeTerminalsKey(workspaceId, agentTabId)
+    const list = get().byKey[key]
+    if (!list) return
+    const tab = list.find((t) => t.id === shellId)
+    if (!tab) return
+    const trimmed = label.trim()
+    const nextLabel = trimmed.length > 0 ? trimmed : tab.label
+    set((s) => ({
+      byKey: {
+        ...s.byKey,
+        [key]: list.map((t) => (t.id === shellId ? { ...t, label: nextLabel } : t)),
+      },
     }))
   },
 

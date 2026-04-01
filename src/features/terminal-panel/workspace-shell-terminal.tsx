@@ -1,17 +1,7 @@
-import { ShellTerminal } from './shell-terminal'
+/** Stable PTY session ids for terminal panel mounts. */
 
-export function workspaceShellSessionId(workspaceId: string) {
-  return `mux:shell:${workspaceId}`
-}
-
-type Props = {
-  workspaceId: string
-  cwd: string
-}
-
-/** One global (project) shell per workspace; session id is stable across workspace switches. */
-export function WorkspaceShellTerminal({ workspaceId, cwd }: Props) {
-  return <ShellTerminal sessionId={workspaceShellSessionId(workspaceId)} cwd={cwd} />
+export function globalShellSessionId(workspaceId: string, shellId: string) {
+  return `mux:shell:${workspaceId}:${shellId}`
 }
 
 export function worktreeShellSessionId(

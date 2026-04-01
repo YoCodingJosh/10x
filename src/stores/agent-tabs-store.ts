@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
 
 export type AgentTab = {
@@ -41,6 +42,8 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
   },
 
   purgeWorkspace: (workspaceId) => {
+    useWorktreeTerminalsStore.getState().purgeWorkspace(workspaceId)
+    useGlobalTerminalsStore.getState().purgeWorkspace(workspaceId)
     set((s) => {
       const { [workspaceId]: _removed, ...rest } = s.byWorkspaceId
       return { byWorkspaceId: rest }

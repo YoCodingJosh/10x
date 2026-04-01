@@ -5,6 +5,7 @@ import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-works
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import {
   useWorktreeTerminalsStore,
   worktreeTerminalsKey,
@@ -12,8 +13,10 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
+import { EditableGlobalShellLabel } from './editable-global-shell-label'
+import { EditableWorktreeShellLabel } from './editable-worktree-shell-label'
 import { ShellTerminal } from './shell-terminal'
-import { WorkspaceShellTerminal, worktreeShellSessionId } from './workspace-shell-terminal'
+import { globalShellSessionId, worktreeShellSessionId } from './workspace-shell-terminal'
 
 type TerminalScope = 'project' | 'agent'
 
@@ -28,6 +31,13 @@ export function TerminalPanel() {
   const removeShell = useWorktreeTerminalsStore((s) => s.removeShell)
   const setActiveShell = useWorktreeTerminalsStore((s) => s.setActiveShell)
   const reconcileActiveShell = useWorktreeTerminalsStore((s) => s.reconcileActiveShell)
+
+  const globalByWorkspaceId = useGlobalTerminalsStore((s) => s.byWorkspaceId)
+  const globalActiveMap = useGlobalTerminalsStore((s) => s.activeShellId)
+  const addGlobalShell = useGlobalTerminalsStore((s) => s.addShell)
+  const removeGlobalShell = useGlobalTerminalsStore((s) => s.removeShell)
+  const setGlobalActiveShell = useGlobalTerminalsStore((s) => s.setActiveShell)
+  const reconcileGlobalActiveShell = useGlobalTerminalsStore((s) => s.reconcileActiveShell)
 
   const [terminalScope, setTerminalScope] = useState<TerminalScope>('project')
   const prevVisibleWs = useRef<string | null>(null)
@@ -56,10 +66,18 @@ export function TerminalPanel() {
   const agentShells = wtKey ? (byKey[wtKey] ?? []) : []
   const activeShellId = wtKey ? (activeShellMap[wtKey] ?? null) : null
 
+  const globalShells = visibleId ? (globalByWorkspaceId[visibleId] ?? []) : []
+  const activeGlobalShellId = visibleId ? (globalActiveMap[visibleId] ?? null) : null
+
   useLayoutEffect(() => {
     if (!visibleId || !activeAgentTabId) return
     reconcileActiveShell(visibleId, activeAgentTabId)
   }, [visibleId, activeAgentTabId, agentShells, reconcileActiveShell])
+
+  useLayoutEffect(() => {
+    if (!visibleId) return
+    reconcileGlobalActiveShell(visibleId)
+  }, [visibleId, globalShells, reconcileGlobalActiveShell])
 
   if (workspaces.length === 0 || visibleId == null) {
     return (
@@ -76,6 +94,8 @@ export function TerminalPanel() {
       </section>
     )
   }
+
+  const projectPath = visibleWsRow?.path ?? ''
 
   const agentShellLayer = (
     <>
@@ -142,6 +162,60 @@ export function TerminalPanel() {
     </>
   )
 
+  const projectShellLayer = (
+    <>
+      {globalShells.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+          <p className="text-xs text-muted-foreground">No project shells yet.</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => addGlobalShell(visibleId)}
+          >
+            <Plus className="size-3.5" />
+            Add shell
+          </Button>
+        </div>
+      ) : (
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          {workspaces.map((ws) => {
+            const shells = globalByWorkspaceId[ws.id] ?? []
+            if (shells.length === 0) return null
+            const activeG = globalActiveMap[ws.id] ?? null
+            return (
+              <div
+                key={ws.id}
+                className={cn(
+                  'flex min-h-0 min-w-0 flex-1 flex-col',
+                  ws.id !== visibleId && 'hidden',
+                )}
+              >
+                {shells.map((sh) => {
+                  const isVisibleLayer = ws.id === visibleId && sh.id === activeG
+                  return (
+                    <div
+                      key={sh.id}
+                      className={cn(
+                        'flex min-h-0 min-w-0 flex-1 flex-col',
+                        !isVisibleLayer && 'hidden',
+                      )}
+                    >
+                      <ShellTerminal
+                        sessionId={globalShellSessionId(ws.id, sh.id)}
+                        cwd={ws.path}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+
   return (
     <section
       className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
@@ -186,6 +260,59 @@ export function TerminalPanel() {
         )}
       </div>
 
+      {terminalScope === 'project' && globalShells.length > 0 ? (
+        <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/80 bg-muted/20 px-2">
+          {globalShells.map((sh) => (
+            <div key={sh.id} className="flex min-w-0 items-center">
+              <button
+                type="button"
+                onClick={() => setGlobalActiveShell(visibleId, sh.id)}
+                className={cn(
+                  'flex max-w-32 min-w-0 items-center rounded border px-2 py-0.5 text-[11px]',
+                  sh.id === activeGlobalShellId
+                    ? 'border-border bg-background text-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                )}
+              >
+                <EditableGlobalShellLabel
+                  workspaceId={visibleId}
+                  shellId={sh.id}
+                  isActive={sh.id === activeGlobalShellId}
+                />
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="size-6 shrink-0 text-muted-foreground"
+                title="Close shell"
+                onClick={() => removeGlobalShell(visibleId, sh.id)}
+              >
+                <X className="size-2.5" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-6 shrink-0"
+            title="New shell"
+            onClick={() => addGlobalShell(visibleId)}
+          >
+            <Plus className="size-3" />
+          </Button>
+          {projectPath ? (
+            <span
+              className="ml-auto truncate font-mono text-[10px] text-foreground/60"
+              title={projectPath}
+            >
+              {projectPath}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       {terminalScope === 'agent' && activeAgentTabId && agentShells.length > 0 ? (
         <div className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/80 bg-muted/20 px-2">
           {agentShells.map((sh) => (
@@ -194,13 +321,18 @@ export function TerminalPanel() {
                 type="button"
                 onClick={() => setActiveShell(visibleId, activeAgentTabId, sh.id)}
                 className={cn(
-                  'max-w-28 truncate rounded border px-2 py-0.5 text-[11px]',
+                  'flex max-w-32 min-w-0 items-center rounded border px-2 py-0.5 text-[11px]',
                   sh.id === activeShellId
                     ? 'border-border bg-background text-foreground'
                     : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                 )}
               >
-                {sh.label}
+                <EditableWorktreeShellLabel
+                  workspaceId={visibleId}
+                  agentTabId={activeAgentTabId}
+                  shellId={sh.id}
+                  isActive={sh.id === activeShellId}
+                />
               </button>
               <Button
                 type="button"
@@ -232,24 +364,26 @@ export function TerminalPanel() {
         </div>
       ) : null}
 
+      {/* Keep both layers mounted so switching Project ↔ Agent does not unmount PTYs. */}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {terminalScope === 'project' ? (
-          <>
-            {workspaces.map((ws) => (
-              <div
-                key={ws.id}
-                className={cn(
-                  'flex min-h-0 min-w-0 flex-1 flex-col',
-                  ws.id !== visibleId && 'hidden',
-                )}
-              >
-                <WorkspaceShellTerminal workspaceId={ws.id} cwd={ws.path} />
-              </div>
-            ))}
-          </>
-        ) : (
-          agentShellLayer
-        )}
+        <div
+          className={cn(
+            'flex min-h-0 min-w-0 flex-1 flex-col',
+            terminalScope !== 'project' && 'hidden',
+          )}
+          aria-hidden={terminalScope !== 'project'}
+        >
+          {projectShellLayer}
+        </div>
+        <div
+          className={cn(
+            'flex min-h-0 min-w-0 flex-1 flex-col',
+            terminalScope !== 'agent' && 'hidden',
+          )}
+          aria-hidden={terminalScope !== 'agent'}
+        >
+          {agentShellLayer}
+        </div>
       </div>
     </section>
   )
