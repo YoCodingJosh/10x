@@ -2,6 +2,12 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
@@ -64,22 +70,11 @@ export function AgentSessionsPanel() {
     setWorktreeOpen(true)
   }
 
-  async function requestNewAgentTab() {
-    if (!workspace?.path) {
-      addTab(workspaceId)
-      return
-    }
-    const classified = await window.mux.git.classify(workspace.path)
-    if (!classified.isRepo) {
-      addTab(workspaceId)
-      return
-    }
-    openGitWorktreeDialog()
-  }
-
   function startPlainAgent() {
     addTab(workspaceId)
   }
+
+  const newAgentPlusDisabled = !workspace?.path || repoKind === 'loading'
 
   const resolvedTabId =
     tabs.length === 0
@@ -135,20 +130,28 @@ export function AgentSessionsPanel() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Git repository</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Each Claude tab uses its own worktree under{' '}
-              <code className="rounded bg-muted px-1 font-mono text-xs">~/10x-worktrees</code>. Create
-              one to get started.
+              Run Claude in the{' '}
+              <span className="font-medium text-foreground">main checkout</span>, or
+              add an isolated worktree under{' '}
+              <code className="rounded bg-muted px-1 font-mono text-xs">~/10x-worktrees</code> when you
+              want a parallel tree.
             </p>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            className="gap-2"
-            onClick={() => openGitWorktreeDialog()}
-          >
-            <GitBranchPlus className="size-3.5" />
-            Create worktree
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" size="sm" onClick={() => startPlainAgent()}>
+              Start agent
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => openGitWorktreeDialog()}
+            >
+              <GitBranchPlus className="size-3.5" />
+              Create worktree
+            </Button>
+          </div>
         </>
       ) : (
         <>
@@ -242,16 +245,42 @@ export function AgentSessionsPanel() {
                 </TabsTrigger>
               ))}
             </TabsList>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-xs"
-              className="shrink-0"
-              title="New agent tab"
-              onClick={() => void requestNewAgentTab()}
-            >
-              <Plus className="size-3.5" />
-            </Button>
+            {repoKind === 'git' && workspace?.path ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    className="shrink-0"
+                    title="New agent tab"
+                    disabled={newAgentPlusDisabled}
+                  >
+                    <Plus className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => startPlainAgent()}>
+                    Start agent on main
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openGitWorktreeDialog()}>
+                    Create worktree…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                className="shrink-0"
+                title="New agent tab"
+                disabled={newAgentPlusDisabled}
+                onClick={() => startPlainAgent()}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            )}
           </div>
 
           {tabs.map((tab) => (
