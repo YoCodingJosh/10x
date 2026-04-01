@@ -50,10 +50,11 @@
   },
   "build": {
     "appId": "com.mux.desktop",
-    "productName": "Mux",
+    "productName": "10x",
     "directories": {
       "output": "release"
     },
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
