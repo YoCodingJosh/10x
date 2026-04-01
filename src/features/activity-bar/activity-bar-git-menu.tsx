@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
+import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { cn } from '@/lib/utils'
 import { GitBranch } from 'lucide-react'
 
@@ -48,17 +49,31 @@ export function ActivityBarGitMenu() {
   const onMenuOpenChange = useCallback(
     (open: boolean) => {
       setMenuOpen(open)
-      if (open) void refreshRepoState()
+      if (open && gitCwd) {
+        void runWithStatusActivity(
+          { domain: 'git', label: 'Inspecting repository', detail: gitCwd },
+          refreshRepoState,
+        )
+      }
     },
-    [refreshRepoState],
+    [gitCwd, refreshRepoState],
   )
 
-  async function runGitOp(op: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+  async function runGitOp(
+    label: string,
+    op: () => Promise<{ ok: true } | { ok: false; error: string }>,
+  ) {
     setBusy(true)
     try {
-      const r = await op()
-      if (!r.ok) window.alert(r.error)
-      else await refreshRepoState()
+      await runWithStatusActivity(
+        { domain: 'git', label, detail: gitCwd ?? undefined },
+        async () => {
+          const r = await op()
+          if (!r.ok) window.alert(r.error)
+          else await refreshRepoState()
+          return r
+        },
+      )
     } finally {
       setBusy(false)
     }
@@ -70,7 +85,7 @@ export function ActivityBarGitMenu() {
     if (!msg) return
     setCommitOpen(false)
     setCommitMessage('')
-    void runGitOp(() => window.mux.git.commit({ cwd: gitCwd, message: msg }))
+    void runGitOp('Committing', () => window.mux.git.commit({ cwd: gitCwd, message: msg }))
   }
 
   return (
@@ -107,7 +122,7 @@ export function ActivityBarGitMenu() {
               disabled={busy}
               onSelect={(e) => {
                 e.preventDefault()
-                void runGitOp(() => window.mux.git.init(gitCwd))
+                void runGitOp('Initializing repository', () => window.mux.git.init(gitCwd))
               }}
             >
               Initialize Git repository
@@ -118,7 +133,7 @@ export function ActivityBarGitMenu() {
                 disabled={busy}
                 onSelect={(e) => {
                   e.preventDefault()
-                  void runGitOp(() => window.mux.git.addAll(gitCwd))
+                  void runGitOp('Staging changes', () => window.mux.git.addAll(gitCwd))
                 }}
               >
                 Stage all changes
@@ -139,7 +154,7 @@ export function ActivityBarGitMenu() {
                   disabled={busy}
                   onSelect={(e) => {
                     e.preventDefault()
-                    void runGitOp(() => window.mux.git.push(gitCwd))
+                    void runGitOp('Pushing to origin', () => window.mux.git.push(gitCwd))
                   }}
                 >
                   Push

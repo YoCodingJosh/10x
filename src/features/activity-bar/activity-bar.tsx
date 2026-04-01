@@ -4,6 +4,7 @@ import { ActivityBarGitMenu } from './activity-bar-git-menu'
 import { Button } from '@/components/ui/button'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { SettingsDialog } from '@/features/settings/settings-dialog'
+import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { Code2, FolderOpen, Globe, Settings } from 'lucide-react'
 
 export function ActivityBar() {
@@ -31,10 +32,14 @@ export function ActivityBar() {
   async function openGitOriginInBrowser() {
     const path = active?.path
     if (!path) return
-    const r = await window.mux.git.openOriginInBrowser(path)
-    if (!r.ok) {
-      window.alert(r.error)
-    }
+    await runWithStatusActivity(
+      { domain: 'git', label: 'Opening remote', detail: path },
+      async () => {
+        const r = await window.mux.git.openOriginInBrowser(path)
+        if (!r.ok) window.alert(r.error)
+        return r
+      },
+    )
   }
 
   return (

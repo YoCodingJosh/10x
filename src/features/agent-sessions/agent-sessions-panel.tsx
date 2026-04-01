@@ -11,6 +11,7 @@ import {
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
+import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { cn } from '@/lib/utils'
@@ -103,20 +104,26 @@ export function AgentSessionsPanel() {
   }
 
   async function confirmWorktree(worktreeName: string): Promise<boolean> {
-    if (!workspace?.path) return false
-    const result = await window.mux.git.createWorktree({
-      repoCwd: workspace.path,
-      worktreeName,
-    })
-    if (!result.ok) {
-      setCreateError(result.error)
-      return false
-    }
-    addTab(workspaceId, {
-      agentPath: result.worktreePath,
-      label: worktreeName.trim(),
-    })
-    return true
+    const repoPath = workspace?.path
+    if (!repoPath) return false
+    return runWithStatusActivity(
+      { domain: 'git', label: 'Creating worktree', detail: worktreeName.trim() },
+      async () => {
+        const result = await window.mux.git.createWorktree({
+          repoCwd: repoPath,
+          worktreeName,
+        })
+        if (!result.ok) {
+          setCreateError(result.error)
+          return false
+        }
+        addTab(workspaceId, {
+          agentPath: result.worktreePath,
+          label: worktreeName.trim(),
+        })
+        return true
+      },
+    )
   }
 
   const emptyState = (
@@ -182,11 +189,16 @@ export function AgentSessionsPanel() {
         onConfirmRemove={async () => {
           const ctx = closeWorktreeConfirm
           if (!ctx) return { ok: false as const, error: 'Nothing to close.' }
-          const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
-          if (r.ok) {
-            closeTab(workspaceId, ctx.tabId)
-          }
-          return r
+          return runWithStatusActivity(
+            { domain: 'git', label: 'Removing worktree', detail: ctx.agentPath },
+            async () => {
+              const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
+              if (r.ok) {
+                closeTab(workspaceId, ctx.tabId)
+              }
+              return r
+            },
+          )
         }}
       />
       <WorktreeNameDialog

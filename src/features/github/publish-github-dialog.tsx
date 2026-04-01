@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { GithubAuthConnectSection } from '@/features/github/github-auth-connect-section'
 import { useGithubDeviceAuth } from '@/features/github/use-github-device-auth'
+import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -46,19 +47,25 @@ export function PublishGithubDialog({ open, onOpenChange, gitCwd, onPublished }:
     if (!gitCwd || !repoName.trim() || !auth.githubLogin) return
     setBusy(true)
     try {
-      const r = await window.mux.github.createRepoAndLink({
-        cwd: gitCwd,
-        name: repoName.trim(),
-        description: repoDesc.trim() || undefined,
-        private: repoPrivate,
-      })
-      if (!r.ok) {
-        window.alert(r.error)
-        return
-      }
-      window.alert(`Linked \`origin\` to ${r.html_url}. You can push from the Git menu.`)
-      onOpenChange(false)
-      onPublished?.()
+      await runWithStatusActivity(
+        { domain: 'github', label: 'Publishing to GitHub', detail: repoName.trim() },
+        async () => {
+          const r = await window.mux.github.createRepoAndLink({
+            cwd: gitCwd,
+            name: repoName.trim(),
+            description: repoDesc.trim() || undefined,
+            private: repoPrivate,
+          })
+          if (!r.ok) {
+            window.alert(r.error)
+            return r
+          }
+          window.alert(`Linked \`origin\` to ${r.html_url}. You can push from the Git menu.`)
+          onOpenChange(false)
+          onPublished?.()
+          return r
+        },
+      )
     } finally {
       setBusy(false)
     }
