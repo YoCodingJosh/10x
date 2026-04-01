@@ -1,10 +1,11 @@
-import { useLayoutEffect, useState } from 'react'
+import { useLayoutEffect } from 'react'
 import { Plus, X } from 'lucide-react'
 
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useTerminalScopeStore, type TerminalScope } from '@/stores/terminal-scope-store'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import {
   useWorktreeTerminalsStore,
@@ -17,34 +18,6 @@ import { EditableGlobalShellLabel } from './editable-global-shell-label'
 import { EditableWorktreeShellLabel } from './editable-worktree-shell-label'
 import { ShellTerminal } from './shell-terminal'
 import { globalShellSessionId, worktreeShellSessionId } from './workspace-shell-terminal'
-
-type TerminalScope = 'project' | 'agent'
-
-const TERMINAL_SCOPE_STORAGE_KEY = 'mux.terminalScopeByWorkspace'
-
-function readTerminalScopeByWorkspace(): Record<string, TerminalScope> {
-  try {
-    const raw = localStorage.getItem(TERMINAL_SCOPE_STORAGE_KEY)
-    if (raw == null) return {}
-    const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
-    const out: Record<string, TerminalScope> = {}
-    for (const [k, v] of Object.entries(parsed)) {
-      if (v === 'project' || v === 'agent') out[k] = v
-    }
-    return out
-  } catch {
-    return {}
-  }
-}
-
-function writeTerminalScopeByWorkspace(map: Record<string, TerminalScope>) {
-  try {
-    localStorage.setItem(TERMINAL_SCOPE_STORAGE_KEY, JSON.stringify(map))
-  } catch {
-    /* ignore */
-  }
-}
 
 export function TerminalPanel() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
@@ -65,9 +38,8 @@ export function TerminalPanel() {
   const setGlobalActiveShell = useGlobalTerminalsStore((s) => s.setActiveShell)
   const reconcileGlobalActiveShell = useGlobalTerminalsStore((s) => s.reconcileActiveShell)
 
-  const [scopeByWorkspace, setScopeByWorkspace] = useState<
-    Record<string, TerminalScope>
-  >(readTerminalScopeByWorkspace)
+  const scopeByWorkspace = useTerminalScopeStore((s) => s.scopeByWorkspace)
+  const setScopeInStore = useTerminalScopeStore((s) => s.setScope)
 
   const visibleId =
     workspaces.length === 0 ? null : (visibleWorkspaceId ?? workspaces[0]!.id)
@@ -94,11 +66,7 @@ export function TerminalPanel() {
 
   function setTerminalScope(next: TerminalScope) {
     if (!visibleId) return
-    setScopeByWorkspace((prev) => {
-      const merged = { ...prev, [visibleId]: next }
-      writeTerminalScopeByWorkspace(merged)
-      return merged
-    })
+    setScopeInStore(visibleId, next)
   }
 
   const hasAnyAgentShell = Object.values(byKey).some((list) => list.length > 0)
@@ -120,6 +88,7 @@ export function TerminalPanel() {
     return (
       <section
         id="mux-terminal-panel"
+        data-mux-terminal-scope="project"
         className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
         aria-label="Terminal panel"
       >
@@ -279,6 +248,7 @@ export function TerminalPanel() {
   return (
     <section
       id="mux-terminal-panel"
+      data-mux-terminal-scope={terminalScope}
       className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
       aria-label="Terminal panel"
     >

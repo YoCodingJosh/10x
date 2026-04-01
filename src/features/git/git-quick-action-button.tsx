@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { GitCommitMessageDialog } from '@/features/git/git-commit-message-dialog'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
@@ -9,6 +9,7 @@ import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import {
@@ -60,6 +61,24 @@ export function GitQuickActionButton({ className }: Props) {
   const [commitOpen, setCommitOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const commitNonce = useCommandPaletteIntentsStore((s) => s.commitNonce)
+  const publishNonce = useCommandPaletteIntentsStore((s) => s.publishNonce)
+  const prevCommitNonce = useRef(0)
+  const prevPublishNonce = useRef(0)
+
+  useEffect(() => {
+    if (commitNonce > prevCommitNonce.current) {
+      setCommitOpen(true)
+    }
+    prevCommitNonce.current = commitNonce
+  }, [commitNonce])
+
+  useEffect(() => {
+    if (publishNonce > prevPublishNonce.current) {
+      setPublishOpen(true)
+    }
+    prevPublishNonce.current = publishNonce
+  }, [publishNonce])
 
   async function runOp(label: string, op: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     if (!cwd) return
@@ -169,8 +188,8 @@ export function GitQuickActionButton({ className }: Props) {
         aria-label={iconOnly ? titleText : undefined}
         title={titleText}
         className={cn(
-          'mr-2 flex h-[18px] shrink-0 items-center rounded-md border-0 border-transparent',
-          iconOnly ? 'min-w-[18px] justify-center px-0.5' : 'max-w-[min(44vw,200px)] min-w-0 gap-1 px-1.5',
+          'ml-0.5 flex h-[18px] shrink-0 items-center rounded-md border-0 border-transparent',
+          iconOnly ? 'min-w-[18px] justify-center' : 'max-w-[min(44vw,200px)] min-w-0 gap-1',
           'text-[11px] font-medium text-muted-foreground transition-colors duration-150',
           'hover:text-accent-foreground',
           'disabled:pointer-events-none disabled:opacity-40',

@@ -14,7 +14,9 @@ import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-w
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import type { AgentTab } from '@/stores/agent-tabs-store'
+import { useAgentTabCloseIntentStore } from '@/stores/agent-tab-close-intent-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import { GitBranchPlus, Plus, X } from 'lucide-react'
@@ -26,6 +28,12 @@ import { useWorkspaceSessionScope } from './workspace-id-context'
 
 /** Stable fallback so Zustand's getSnapshot is not a new `[]` every subscribe (avoids infinite loop). */
 const EMPTY_TABS: readonly AgentTab[] = []
+
+/** Last palette `worktreeNonce` applied to the visible workspace (module-level so hidden panels don’t consume it). */
+let lastWorktreePaletteNonceHandled = 0
+
+/** Last `newAgentTabNonce` from keyboard / palette (same visibility guard as worktree). */
+let lastNewAgentTabNonceHandled = 0
 
 export function AgentSessionsPanel() {
   const workspaceId = useWorkspaceSessionScope()
@@ -40,6 +48,9 @@ export function AgentSessionsPanel() {
   const addTab = useAgentTabsStore((s) => s.addTab)
   const closeTab = useAgentTabsStore((s) => s.closeTab)
 
+  const closeIntent = useAgentTabCloseIntentStore((s) => s.intent)
+  const clearCloseIntent = useAgentTabCloseIntentStore((s) => s.clearIntent)
+
   const [worktreeOpen, setWorktreeOpen] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [worktreeDialogFirst, setWorktreeDialogFirst] = useState(true)
@@ -50,6 +61,24 @@ export function AgentSessionsPanel() {
   } | null>(null)
 
   const [hiddenRepoKind, setHiddenRepoKind] = useState<'loading' | 'git' | 'plain'>('loading')
+
+  const worktreeNonce = useCommandPaletteIntentsStore((s) => s.worktreeNonce)
+  const newAgentTabNonce = useCommandPaletteIntentsStore((s) => s.newAgentTabNonce)
+
+  useEffect(() => {
+    if (workspaceId !== visibleWorkspaceId) return
+    if (worktreeNonce <= lastWorktreePaletteNonceHandled) return
+    lastWorktreePaletteNonceHandled = worktreeNonce
+    setWorktreeDialogFirst(tabs.length === 0)
+    setWorktreeOpen(true)
+  }, [worktreeNonce, workspaceId, visibleWorkspaceId, tabs.length])
+
+  useEffect(() => {
+    if (workspaceId !== visibleWorkspaceId) return
+    if (newAgentTabNonce <= lastNewAgentTabNonceHandled) return
+    lastNewAgentTabNonceHandled = newAgentTabNonce
+    useAgentTabsStore.getState().addTab(workspaceId)
+  }, [newAgentTabNonce, workspaceId, visibleWorkspaceId])
 
   useEffect(() => {
     if (worktreeOpen) setCreateError(null)
@@ -133,6 +162,19 @@ export function AgentSessionsPanel() {
       label: tab.label,
     })
   }
+
+  useEffect(() => {
+    if (!closeIntent) return
+    if (closeIntent.workspaceId !== workspaceId) return
+    if (resolvedTabId == null || closeIntent.tabId !== resolvedTabId) {
+      clearCloseIntent()
+      return
+    }
+    const tab = tabs.find((t) => t.id === closeIntent.tabId)
+    clearCloseIntent()
+    if (!tab) return
+    requestCloseTab(tab)
+  }, [closeIntent, workspaceId, resolvedTabId, tabs, clearCloseIntent, requestCloseTab])
 
   async function confirmWorktree(worktreeName: string): Promise<boolean> {
     const repoPath = workspace?.path

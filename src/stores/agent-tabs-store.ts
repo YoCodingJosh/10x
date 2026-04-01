@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 
 import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
+import { scheduleFocusVisibleMuxXterm } from '@/lib/focus-mux-xterm'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
+import { useTerminalScopeStore } from '@/stores/terminal-scope-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
 
 export type AgentTab = {
@@ -27,7 +29,10 @@ type AgentTabsState = {
   purgeWorkspace: (workspaceId: string) => void
   pruneToValidWorkspaceIds: (validIds: Set<string>) => void
   setActiveTab: (workspaceId: string, tabId: string) => void
-  addTab: (workspaceId: string, opts?: { agentPath?: string; label?: string }) => void
+  addTab: (
+    workspaceId: string,
+    opts?: { agentPath?: string; label?: string; skipAgentFocus?: boolean },
+  ) => void
   closeTab: (workspaceId: string, tabId: string) => void
   /** Close the agent tab whose worktree path matches (e.g. after removing the worktree on disk). */
   closeTabByAgentPath: (workspaceId: string, agentPath: string) => boolean
@@ -87,6 +92,13 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
     if (opts?.agentPath) {
       tab.agentPath = opts.agentPath
     }
+
+    if (!opts?.skipAgentFocus) {
+      useTerminalScopeStore
+        .getState()
+        .setScope(workspaceId, opts?.agentPath ? 'agent' : 'project')
+    }
+
     set((s) => ({
       byWorkspaceId: {
         ...s.byWorkspaceId,
@@ -96,6 +108,11 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
         },
       },
     }))
+
+    // Skip when restoring worktree tabs in the background so we don’t steal focus on startup.
+    if (!opts?.skipAgentFocus) {
+      scheduleFocusVisibleMuxXterm('#mux-agent-desk')
+    }
   },
 
   closeTab: (workspaceId, tabId) => {
@@ -105,8 +122,17 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
     useWorktreeTerminalsStore.getState().purgeAgentTab(workspaceId, tabId)
 
     const tabs = bucket.tabs.filter((t) => t.id !== tabId)
-    const nextActive =
-      bucket.activeTabId === tabId ? (tabs[0]?.id ?? null) : bucket.activeTabId
+    const closedIndex = bucket.tabs.findIndex((t) => t.id === tabId)
+    let nextActive: string | null
+    if (bucket.activeTabId === tabId) {
+      if (closedIndex <= 0) {
+        nextActive = tabs[0]?.id ?? null
+      } else {
+        nextActive = tabs[closedIndex - 1]!.id
+      }
+    } else {
+      nextActive = bucket.activeTabId
+    }
 
     set((s) => ({
       byWorkspaceId: {
@@ -114,6 +140,8 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
         [workspaceId]: { tabs, activeTabId: nextActive },
       },
     }))
+
+    scheduleFocusVisibleMuxXterm('#mux-agent-desk')
   },
 
   closeTabByAgentPath: (workspaceId, agentPath) => {

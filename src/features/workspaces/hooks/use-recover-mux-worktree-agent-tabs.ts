@@ -46,6 +46,7 @@ export function useRecoverMuxWorktreeAgentTabs() {
             useAgentTabsStore.getState().addTab(w.id, {
               agentPath: wt.path,
               label: wt.label,
+              skipAgentFocus: true,
             })
             existing.add(wt.path)
           }

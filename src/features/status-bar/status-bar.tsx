@@ -1,4 +1,5 @@
 import { GitQuickActionButton } from '@/features/git/git-quick-action-button'
+import { FocusedGitContextLabel } from '@/features/status-bar/focused-git-context-label'
 import { StatusDomainIcon } from '@/features/status-bar/status-domain-icon'
 import { useStatusActivityStore } from '@/stores/status-activity-store'
 import { Loader2 } from 'lucide-react'
@@ -12,16 +13,18 @@ export function StatusBar() {
 
   return (
     <footer
-      className="flex h-[22px] shrink-0 items-center border-t border-border bg-muted/30 px-2 text-[11px] text-muted-foreground"
+      className="flex h-[22px] shrink-0 items-center gap-2 border-t border-border bg-muted/30 px-2 text-[11px] text-muted-foreground"
       role="status"
       aria-live="polite"
       aria-label="Background tasks"
     >
       <GitQuickActionButton />
+      <FocusedGitContextLabel />
+      <div className="flex-1"></div>
       {activities.length === 0 ? (
-        <span className="min-w-0 flex-1 select-none text-muted-foreground/80">Ready</span>
+        <span className="min-w-0 select-none text-muted-foreground/80">Ready</span>
       ) : (
-        <ul className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
+        <ul className="flex min-w-0 items-center gap-4 overflow-x-auto">
           {activities.map((a) => (
             <li key={a.id} className="flex min-w-0 max-w-[min(40vw,280px)] shrink-0 items-center gap-1.5" title={a.detail ?? a.label}>
               <StatusDomainIcon domain={a.domain} />
