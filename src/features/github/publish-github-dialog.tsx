@@ -60,7 +60,6 @@ export function PublishGithubDialog({ open, onOpenChange, gitCwd, onPublished }:
             window.alert(r.error)
             return r
           }
-          window.alert(`Linked \`origin\` to ${r.html_url}. You can push from the Git menu.`)
           onOpenChange(false)
           onPublished?.()
           return r
