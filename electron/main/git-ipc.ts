@@ -12,8 +12,14 @@ const execFileAsync = promisify(execFile)
 
 const WORKTREES_ROOT_SEGMENT = '10x-worktrees'
 
+/** `fix-path` runs a sync login shell to rebuild PATH — do that once per process, not per `git` spawn. */
+let didFixPathForGit = false
+
 function gitEnv(): NodeJS.ProcessEnv {
-  fixPath()
+  if (!didFixPathForGit) {
+    fixPath()
+    didFixPathForGit = true
+  }
   return {
     ...process.env,
     HOME: process.env.HOME || os.homedir(),
@@ -442,22 +448,30 @@ export async function gitRemoteOriginStatus(rawPath: string): Promise<GitRemoteO
 }
 
 export async function gitClassify(cwd: string): Promise<GitClassifyResult> {
-  const inside = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'])
-  if (!inside.ok || inside.stdout !== 'true') {
+  /** One process instead of three sequential `rev-parse` calls (saves ~2 spawns per summary). */
+  const r = await runGit(cwd, [
+    'rev-parse',
+    '--is-inside-work-tree',
+    '--show-toplevel',
+    '--git-common-dir',
+  ])
+  if (!r.ok || !r.stdout) {
     return { isRepo: false }
   }
-  const top = await runGit(cwd, ['rev-parse', '--show-toplevel'])
-  if (!top.ok || !top.stdout) {
+  const lines = r.stdout.split('\n').filter((l) => l.length > 0)
+  if (lines.length < 3) {
     return { isRepo: false }
   }
-  const common = await runGit(cwd, ['rev-parse', '--git-common-dir'])
-  if (!common.ok || !common.stdout) {
+  const inside = lines[0]!.trim()
+  const topRaw = lines[1]!.trim()
+  const commonRaw = lines[2]!.trim()
+  if (inside !== 'true' || !topRaw || !commonRaw) {
     return { isRepo: false }
   }
-  const commonDir = path.isAbsolute(common.stdout)
-    ? common.stdout
-    : path.resolve(top.stdout, common.stdout)
-  return { isRepo: true, toplevel: top.stdout, commonDir }
+  const commonDir = path.isAbsolute(commonRaw)
+    ? commonRaw
+    : path.resolve(topRaw, commonRaw)
+  return { isRepo: true, toplevel: topRaw, commonDir }
 }
 
 function slugifySegment(name: string): string {
