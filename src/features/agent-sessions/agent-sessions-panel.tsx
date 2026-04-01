@@ -75,6 +75,23 @@ export function AgentSessionsPanel() {
     addTab(workspaceId)
   }
 
+  async function initializeGitInWorkspace() {
+    const root = workspace?.path
+    if (!root) return
+    await runWithStatusActivity(
+      { domain: 'git', label: 'Initializing repository', detail: root },
+      async () => {
+        const r = await window.mux.git.init(root)
+        if (!r.ok) {
+          window.alert(r.error)
+          return r
+        }
+        setRepoKind('git')
+        return r
+      },
+    )
+  }
+
   const newAgentPlusDisabled = !workspace?.path || repoKind === 'loading'
 
   const resolvedTabId =
@@ -165,13 +182,25 @@ export function AgentSessionsPanel() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">No Git repo</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Claude will run in this folder. You can initialize Git anytime; new tabs will then use
-              worktrees.
+              Claude will run in this folder. Initialize Git to unlock worktrees, or start an agent in the
+              folder as-is.
             </p>
           </div>
-          <Button type="button" size="sm" onClick={() => startPlainAgent()}>
-            Start agent
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" size="sm" onClick={() => startPlainAgent()}>
+              Start agent
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => void initializeGitInWorkspace()}
+            >
+              <GitBranchPlus className="size-3.5" />
+              Initialize Git repository
+            </Button>
+          </div>
         </>
       )}
     </div>
