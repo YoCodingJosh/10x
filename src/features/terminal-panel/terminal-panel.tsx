@@ -13,7 +13,7 @@ export function TerminalPanel() {
   if (workspaces.length === 0) {
     return (
       <section
-        className="flex h-[min(40vh,400px)] min-h-[200px] max-h-[55vh] shrink-0 flex-col border-t border-border bg-card"
+        className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
         aria-label="Terminal panel"
       >
         <div className="flex h-8 shrink-0 items-center border-b border-border px-2 text-xs text-muted-foreground">
@@ -30,7 +30,7 @@ export function TerminalPanel() {
 
   return (
     <section
-      className="flex h-[min(40vh,400px)] min-h-[200px] max-h-[55vh] shrink-0 flex-col border-t border-border bg-card"
+      className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
       aria-label="Terminal panel"
     >
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-border px-2 text-xs text-muted-foreground">
