@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { cn } from '@/lib/utils'
 import { Plus, X } from 'lucide-react'
 
 import { ClaudeSessionPane } from './claude-session-pane'
@@ -98,7 +99,8 @@ export function AgentSessionsPanel() {
         <TabsContent
           key={tab.id}
           value={tab.id}
-          className="mt-0 min-h-0 flex-1 overflow-hidden"
+          forceMount
+          className={cn('mt-0 min-h-0 flex-1 overflow-hidden data-[state=inactive]:hidden')}
         >
           <TabIdProvider tabId={tab.id}>
             <ClaudeSessionPane />

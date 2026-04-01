@@ -38,7 +38,7 @@ function ClaudeAgentTerminal({
     const container = containerRef.current
     if (!container) return
 
-    const sessionId = `${sessionKey(workspaceId, tabId)}:${crypto.randomUUID()}`
+    const sessionId = sessionKey(workspaceId, tabId)
     tearingDownRef.current = false
     setBootError(null)
 

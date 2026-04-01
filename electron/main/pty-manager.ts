@@ -221,6 +221,8 @@ export function registerPtyIpc() {
       const cols = Math.max(2, opts.cols)
       const rows = Math.max(1, opts.rows)
 
+      // Always replace on create. Do not "reuse" an existing PTY: a new xterm has no scrollback;
+      // full-screen TUIs like Claude Code will not redraw and you get a blank pane with a cursor.
       const existing = sessions.get(sessionId)
       if (existing) {
         try {
