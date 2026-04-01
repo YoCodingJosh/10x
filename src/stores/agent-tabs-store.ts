@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 
-export type AgentTab = { id: string; label: string }
+export type AgentTab = {
+  id: string
+  label: string
+  /** Git worktree path when this agent runs outside `workspace.path`. */
+  agentPath?: string
+}
 
 type Bucket = { tabs: AgentTab[]; activeTabId: string | null }
 
@@ -9,8 +14,7 @@ function newAgentTab(index: number): AgentTab {
 }
 
 function initialBucket(): Bucket {
-  const tab = newAgentTab(1)
-  return { tabs: [tab], activeTabId: tab.id }
+  return { tabs: [], activeTabId: null }
 }
 
 type AgentTabsState = {
@@ -19,7 +23,7 @@ type AgentTabsState = {
   purgeWorkspace: (workspaceId: string) => void
   pruneToValidWorkspaceIds: (validIds: Set<string>) => void
   setActiveTab: (workspaceId: string, tabId: string) => void
-  addTab: (workspaceId: string) => void
+  addTab: (workspaceId: string, opts?: { agentPath?: string; label?: string }) => void
   closeTab: (workspaceId: string, tabId: string) => void
   renameTab: (workspaceId: string, tabId: string, label: string) => void
 }
@@ -64,11 +68,17 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
     })
   },
 
-  addTab: (workspaceId) => {
+  addTab: (workspaceId, opts) => {
     get().ensureWorkspace(workspaceId)
     const bucket = get().byWorkspaceId[workspaceId]
     if (!bucket) return
-    const tab = newAgentTab(bucket.tabs.length + 1)
+    const tab = newAgentTab(Math.max(1, bucket.tabs.length + 1))
+    if (opts?.label?.trim()) {
+      tab.label = opts.label.trim()
+    }
+    if (opts?.agentPath) {
+      tab.agentPath = opts.agentPath
+    }
     set((s) => ({
       byWorkspaceId: {
         ...s.byWorkspaceId,
@@ -82,7 +92,7 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
 
   closeTab: (workspaceId, tabId) => {
     const bucket = get().byWorkspaceId[workspaceId]
-    if (!bucket || bucket.tabs.length <= 1) return
+    if (!bucket) return
 
     const tabs = bucket.tabs.filter((t) => t.id !== tabId)
     const nextActive =

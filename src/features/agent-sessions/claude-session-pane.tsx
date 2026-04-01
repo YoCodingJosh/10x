@@ -175,7 +175,11 @@ export function ClaudeSessionPane() {
           <code className="mx-1 rounded bg-muted px-1 font-mono text-xs">cwd</code>.
         </div>
       ) : (
-        <ClaudeAgentTerminal workspaceId={workspaceId} tabId={tabId} cwd={workspace.path} />
+        <ClaudeAgentTerminal
+          workspaceId={workspaceId}
+          tabId={tabId}
+          cwd={tab?.agentPath ?? workspace.path}
+        />
       )}
     </div>
   )

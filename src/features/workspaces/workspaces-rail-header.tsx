@@ -1,8 +1,9 @@
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { Plus } from 'lucide-react'
+
 import { workspaceLabelFromPath } from '@/features/workspaces/lib/label-from-path'
 import { usePersistWorkspacesMutation } from '@/features/workspaces/hooks/use-workspaces'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
 
 export function WorkspacesRailHeader() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
@@ -21,7 +22,7 @@ export function WorkspacesRailHeader() {
       },
     ]
     await persist.mutateAsync(next)
-    setActiveWorkspaceId(next[next.length - 1].id)
+    setActiveWorkspaceId(next[next.length - 1]!.id)
   }
 
   return (

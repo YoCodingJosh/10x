@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import Store from 'electron-store'
 
+import { registerGitIpc } from './git-ipc'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -90,6 +91,7 @@ ipcMain.handle(
 )
 
 registerPtyIpc()
+registerGitIpc()
 
 ipcMain.handle('dialog:pickWorkspace', async (event) => {
   const parent =

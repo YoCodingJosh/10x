@@ -14,6 +14,14 @@ type PtyCreateResult =
   | { ok: true }
   | { ok: false; error: string }
 
+type GitClassifyResult =
+  | { isRepo: false }
+  | { isRepo: true; toplevel: string; commonDir: string }
+
+type CreateWorktreeResult =
+  | { ok: true; worktreePath: string; branch: string }
+  | { ok: false; error: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -24,6 +32,14 @@ const api = {
   dialog: {
     pickWorkspace: (): Promise<string | null> =>
       ipcRenderer.invoke('dialog:pickWorkspace'),
+  },
+  git: {
+    classify: (cwd: string): Promise<GitClassifyResult> =>
+      ipcRenderer.invoke('git:classify', cwd),
+    createWorktree: (args: {
+      repoCwd: string
+      worktreeName: string
+    }): Promise<CreateWorktreeResult> => ipcRenderer.invoke('git:createWorktree', args),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>

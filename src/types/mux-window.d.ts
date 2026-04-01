@@ -12,6 +12,21 @@ declare global {
       dialog: {
         pickWorkspace: () => Promise<string | null>
       }
+      git: {
+        classify: (
+          cwd: string,
+        ) => Promise<
+          | { isRepo: false }
+          | { isRepo: true; toplevel: string; commonDir: string }
+        >
+        createWorktree: (args: {
+          repoCwd: string
+          worktreeName: string
+        }) => Promise<
+          | { ok: true; worktreePath: string; branch: string }
+          | { ok: false; error: string }
+        >
+      }
       pty: {
         create: (opts: {
           sessionId: string
