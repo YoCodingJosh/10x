@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
+
 export type AgentTab = {
   id: string
   label: string
@@ -93,6 +95,8 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
   closeTab: (workspaceId, tabId) => {
     const bucket = get().byWorkspaceId[workspaceId]
     if (!bucket) return
+
+    useWorktreeTerminalsStore.getState().purgeAgentTab(workspaceId, tabId)
 
     const tabs = bucket.tabs.filter((t) => t.id !== tabId)
     const nextActive =
