@@ -8,6 +8,7 @@ export type GitWorkingTreeSummaryDTO = {
   upstreamGone: boolean
   hasOrigin: boolean
   isMuxWorktree: boolean
+  isOriginDefaultBranch: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -33,6 +34,7 @@ const muted = 'text-muted-foreground'
 export function summaryEligibleForCreatePrFetch(s: GitWorkingTreeSummaryDTO): boolean {
   return (
     s.isMuxWorktree &&
+    !s.isOriginDefaultBranch &&
     s.hasOrigin &&
     !s.detached &&
     s.conflictCount === 0 &&

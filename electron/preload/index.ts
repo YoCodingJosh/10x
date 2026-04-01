@@ -29,6 +29,7 @@ type GitWorkingTreeSummary = {
   upstreamGone: boolean
   hasOrigin: boolean
   isMuxWorktree: boolean
+  isOriginDefaultBranch: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -122,6 +123,7 @@ const api = {
       ipcRenderer.invoke('git:commit', args),
     push: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:push', cwd),
     pull: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:pull', cwd),
+    fetch: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:fetch', cwd),
     workingTreeSummary: (cwd: string): Promise<GitWorkingTreeSummaryResult> =>
       ipcRenderer.invoke('git:workingTreeSummary', cwd),
     addRemote: (args: { cwd: string; remoteName: string; url: string }): Promise<GitSimpleResult> =>

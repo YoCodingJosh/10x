@@ -52,6 +52,7 @@ declare global {
         }) => Promise<{ ok: true } | { ok: false; error: string }>
         push: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
         pull: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        fetch: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
         workingTreeSummary: (cwd: string) => Promise<
           | { isRepo: false }
           | {
@@ -65,6 +66,7 @@ declare global {
                 upstreamGone: boolean
                 hasOrigin: boolean
                 isMuxWorktree: boolean
+                isOriginDefaultBranch: boolean
                 stagedCount: number
                 unstagedCount: number
                 untrackedCount: number

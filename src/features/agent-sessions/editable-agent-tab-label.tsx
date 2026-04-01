@@ -18,6 +18,8 @@ export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(label)
   const skipBlurCommit = useRef(false)
+  /** Tab was already active when this pointer went down (avoids rename on the click that switches tabs). */
+  const wasActiveWhenPressed = useRef(false)
 
   const isTabActive = activeTabId === tabId
 
@@ -80,10 +82,21 @@ export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
 
   return (
     <span
-      className="block min-w-0 cursor-text truncate text-left"
-      title={isTabActive ? 'Click to rename' : 'Select tab, then click to rename'}
+      className={cn(
+        'block min-w-0 truncate text-left',
+        isTabActive ? 'cursor-text' : 'cursor-pointer',
+      )}
+      title={
+        isTabActive
+          ? 'Click to rename'
+          : 'Switch to this tab, then click again here to rename'
+      }
+      onPointerDownCapture={() => {
+        wasActiveWhenPressed.current = activeTabId === tabId
+      }}
       onClick={(e) => {
         if (!isTabActive) return
+        if (!wasActiveWhenPressed.current) return
         e.stopPropagation()
         e.preventDefault()
         setDraft(label)

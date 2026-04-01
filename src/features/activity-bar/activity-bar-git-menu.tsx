@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { summaryEligibleForCreatePrFetch } from '@/features/git/describe-working-tree'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
@@ -30,6 +31,7 @@ import {
   GitPullRequestCreateArrow,
   Github,
   PlusSquare,
+  RefreshCw,
   Trash2,
 } from 'lucide-react'
 
@@ -56,18 +58,23 @@ export function ActivityBarGitMenu() {
       return
     }
     setPrFollowUpMenu(null)
-    const o = await window.mux.git.remoteOriginStatus(gitCwd)
-    if (!o.isRepo) {
+    const wt = await window.mux.git.workingTreeSummary(gitCwd)
+    if (!wt.isRepo) {
       setIsRepo(false)
       setHasOrigin(null)
       return
     }
     setIsRepo(true)
-    setHasOrigin(o.hasOrigin)
+    setHasOrigin(wt.summary.hasOrigin)
+    if (!wt.summary.hasOrigin) return
+
     const pr = await window.mux.github.getCreatePrContext(gitCwd)
     if (pr.applicable && !pr.hasOpenPr) {
-      if (pr.hasMergedPr) setPrFollowUpMenu({ kind: 'deleteMerged' })
-      else setPrFollowUpMenu({ kind: 'createPr', compareUrl: pr.compareUrl })
+      if (pr.hasMergedPr) {
+        if (wt.summary.isMuxWorktree) setPrFollowUpMenu({ kind: 'deleteMerged' })
+      } else if (summaryEligibleForCreatePrFetch(wt.summary)) {
+        setPrFollowUpMenu({ kind: 'createPr', compareUrl: pr.compareUrl })
+      }
     }
   }, [gitCwd])
 
@@ -153,7 +160,7 @@ export function ActivityBarGitMenu() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            title="Git (stage, commit, push, publish)"
+            title="Git (stage, commit, fetch, pull, push, publish)"
             disabled={!gitCwd}
             aria-label="Git actions"
           >
@@ -214,6 +221,17 @@ export function ActivityBarGitMenu() {
               </DropdownMenuItem>
               {hasOrigin ? (
                 <>
+                  <DropdownMenuItem
+                    disabled={busy}
+                    className="gap-2"
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      void runGitOp('Fetching from origin', () => window.mux.git.fetch(gitCwd))
+                    }}
+                  >
+                    <RefreshCw className="size-3.5 shrink-0 opacity-70" aria-hidden />
+                    Fetch from origin
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={busy}
                     className="gap-2"

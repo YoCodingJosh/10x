@@ -236,6 +236,24 @@ export async function gitPull(rawPath: string): Promise<GitSimpleResult> {
   return { ok: true }
 }
 
+/**
+ * Updates remote-tracking refs for `origin` without merging (`git fetch --prune origin`).
+ */
+export async function gitFetch(rawPath: string): Promise<GitSimpleResult> {
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const root = resolved.root
+  if (!(await gitRepoHasOriginRemote(root))) {
+    return {
+      ok: false,
+      error: 'No remote named origin. Add a remote before fetching.',
+    }
+  }
+  const fetch = await runGit(root, ['fetch', '--prune', 'origin'])
+  if (!fetch.ok) return { ok: false, error: fetch.error }
+  return { ok: true }
+}
+
 export type GitWorkingTreeSummary = {
   branchLabel: string
   detached: boolean
@@ -247,6 +265,11 @@ export type GitWorkingTreeSummary = {
   hasOrigin: boolean
   /** True when this checkout lives under ~/10x-worktrees (Mux agent worktree). */
   isMuxWorktree: boolean
+  /**
+   * Current branch matches `origin`'s default branch (`refs/remotes/origin/HEAD`), or a
+   * common default name if that ref is missing. Create PR is not offered on this branch.
+   */
+  isOriginDefaultBranch: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -255,9 +278,23 @@ export type GitWorkingTreeSummary = {
 
 export type GitWorkingTreeSummaryResult = { isRepo: false } | { isRepo: true; summary: GitWorkingTreeSummary }
 
+async function gitOriginDefaultBranchShort(repoRoot: string): Promise<string | null> {
+  const r = await runGit(repoRoot, ['symbolic-ref', '-q', 'refs/remotes/origin/HEAD'])
+  if (!r.ok || !r.stdout.trim()) return null
+  const ref = r.stdout.trim()
+  const m = /^refs\/remotes\/origin\/(.+)$/.exec(ref)
+  return m?.[1] ?? null
+}
+
 function parseGitStatusBranchLine(line: string): Omit<
   GitWorkingTreeSummary,
-  'hasOrigin' | 'isMuxWorktree' | 'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
+  | 'hasOrigin'
+  | 'isMuxWorktree'
+  | 'isOriginDefaultBranch'
+  | 'stagedCount'
+  | 'unstagedCount'
+  | 'untrackedCount'
+  | 'conflictCount'
 > {
   const emptyUpstream = {
     branchLabel: '?',
@@ -431,9 +468,26 @@ export async function gitWorkingTreeSummary(rawPath: string): Promise<GitWorking
   const counts = parseGitStatusFileLines(fileLines)
   const hasOrigin = await gitRepoHasOriginRemote(root)
   const isMuxWorktree = isUnderMuxWorktreesDir(root)
+
+  let isOriginDefaultBranch = false
+  if (hasOrigin && !meta.detached) {
+    const originDefault = await gitOriginDefaultBranchShort(root)
+    if (originDefault != null) {
+      isOriginDefaultBranch = meta.branchLabel === originDefault
+    } else if (['main', 'master', 'trunk'].includes(meta.branchLabel)) {
+      isOriginDefaultBranch = true
+    }
+  }
+
   return {
     isRepo: true,
-    summary: { ...meta, ...counts, hasOrigin, isMuxWorktree },
+    summary: {
+      ...meta,
+      ...counts,
+      hasOrigin,
+      isMuxWorktree,
+      isOriginDefaultBranch,
+    },
   }
 }
 
@@ -611,9 +665,15 @@ export async function gitCleanupMergedMuxWorktree(rawPath: string): Promise<Remo
     return { ok: false, error: 'Detached HEAD.' }
   }
 
+  const mainRoot = gitMainWorkingTreeRoot(classified)
+
   await runGit(top, ['push', 'origin', '--delete', branch])
 
-  return removeMuxWorktree(top)
+  const removed = await removeMuxWorktree(top)
+  if (!removed.ok) return removed
+
+  await runGit(mainRoot, ['fetch', '--prune', 'origin'])
+  return { ok: true }
 }
 
 /**
@@ -884,6 +944,13 @@ export function registerGitIpc() {
       return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
     }
     return gitPull(rawPath.trim())
+  })
+
+  ipcMain.handle('git:fetch', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+    }
+    return gitFetch(rawPath.trim())
   })
 
   ipcMain.handle('git:workingTreeSummary', async (_e: IpcMainInvokeEvent, rawPath: string) => {

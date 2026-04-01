@@ -16,6 +16,8 @@ type Wt =
   | {
       isRepo: true
       summary: {
+        isMuxWorktree: boolean
+        isOriginDefaultBranch: boolean
         hasOrigin: boolean
         detached: boolean
         upstreamShort: string | null
@@ -46,7 +48,13 @@ export function resolveGitQuickAction(
   if (!s.hasOrigin) return 'publish'
   if (s.ahead > 0) return 'push'
   if (!s.detached && s.upstreamShort == null) return 'push'
-  if (muxWorktreeFollowUp?.kind === 'deleteMergedBranch') return 'deleteMergedBranch'
-  if (muxWorktreeFollowUp?.kind === 'createPr') return 'createPr'
+  if (muxWorktreeFollowUp?.kind === 'deleteMergedBranch') {
+    if (s.isMuxWorktree) return 'deleteMergedBranch'
+    return 'idle'
+  }
+  if (muxWorktreeFollowUp?.kind === 'createPr') {
+    if (s.isMuxWorktree && !s.isOriginDefaultBranch) return 'createPr'
+    return 'idle'
+  }
   return 'idle'
 }
