@@ -195,7 +195,7 @@ export function AgentSessionsPanel() {
         title={worktreeDialogFirst ? 'Create a worktree' : 'New agent worktree'}
         description={
           worktreeDialogFirst
-            ? 'Pick a short name. Mux creates a dedicated checkout under ~/10x-worktrees for this agent tab.'
+            ? 'Pick a short name. 10x creates a dedicated checkout under ~/10x-worktrees for this agent tab.'
             : 'Pick a short name for another isolated checkout. Each tab keeps its own worktree.'
         }
         confirmLabel={worktreeDialogFirst ? 'Create worktree' : 'Create and open tab'}

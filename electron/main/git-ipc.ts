@@ -171,7 +171,7 @@ function isUnderMuxWorktreesDir(absPath: string): boolean {
 export type RemoveMuxWorktreeResult = { ok: true } | { ok: false; error: string }
 
 /**
- * Removes a Mux-managed linked worktree (~/10x-worktrees/...) from Git and deletes the directory.
+ * Removes a 10x-managed linked worktree (~/10x-worktrees/...) from Git and deletes the directory.
  */
 export async function removeMuxWorktree(worktreePath: string): Promise<RemoveMuxWorktreeResult> {
   const normalized = path.normalize(worktreePath.trim())

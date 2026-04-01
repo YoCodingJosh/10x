@@ -13,11 +13,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 type WorkspaceEntry = { id: string; path: string; label: string }
 
-type MuxStoreSchema = {
+type TenxStoreSchema = {
   workspaces: WorkspaceEntry[]
 }
 
-const store = new Store<MuxStoreSchema>({
+const store = new Store<TenxStoreSchema>({
   defaults: {
     workspaces: [],
   },
@@ -48,7 +48,7 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    title: 'Mux',
+    title: '10x',
     width: 1280,
     height: 800,
     minWidth: 800,
@@ -75,16 +75,16 @@ function createWindow() {
   })
 }
 
-ipcMain.handle('store:get', <K extends keyof MuxStoreSchema>(_event: IpcMainInvokeEvent, key: K) =>
+ipcMain.handle('store:get', <K extends keyof TenxStoreSchema>(_event: IpcMainInvokeEvent, key: K) =>
   store.get(key),
 )
 
 ipcMain.handle(
   'store:set',
-  <K extends keyof MuxStoreSchema>(
+  <K extends keyof TenxStoreSchema>(
     _event: IpcMainInvokeEvent,
     key: K,
-    value: MuxStoreSchema[K],
+    value: TenxStoreSchema[K],
   ) => {
     store.set(key, value)
     return true

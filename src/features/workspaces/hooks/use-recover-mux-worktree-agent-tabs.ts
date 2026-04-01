@@ -4,7 +4,7 @@ import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
 /**
- * After reload, recreate agent tabs for Mux worktrees under ~/10x-worktrees that still exist
+ * After reload, recreate agent tabs for 10x worktrees under ~/10x-worktrees that still exist
  * but are not yet represented by a tab (in-memory state was lost).
  */
 export function useRecoverMuxWorktreeAgentTabs() {

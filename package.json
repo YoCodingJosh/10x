@@ -51,7 +51,7 @@
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "build": {
-    "appId": "com.mux.desktop",
+    "appId": "com.tenx.desktop",
     "productName": "10x",
     "directories": {
       "output": "release"
