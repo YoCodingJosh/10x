@@ -2,34 +2,24 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 
-import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
-import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 
 import '@xterm/xterm/css/xterm.css'
 
-import { useAgentTabId } from './tab-id-context'
-import { useWorkspaceSessionScope } from './workspace-id-context'
-
-function sessionKey(workspaceId: string, tabId: string) {
-  return `${workspaceId}:${tabId}`
-}
+/** Prefix only; each mount gets a unique session id so stale exit events never match. */
+export const GLOBAL_TERMINAL_SESSION_PREFIX = 'mux:global-shell'
 
 function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown = false): boolean {
   if (tearingDown) return true
+  // node-pty kill() typically ends the child with SIGHUP (1); not a "crash" to announce.
   if (exitCode === 0 && signal === 1) return true
   return false
 }
 
-/** PTY + xterm live here only so `sessionId` never appears in the parent render path (React Compiler–safe). */
-function ClaudeAgentTerminal({
-  workspaceId,
-  tabId,
-  cwd,
-}: {
-  workspaceId: string
-  tabId: string
-  cwd: string
-}) {
+export function GlobalShellTerminal() {
+  const activeWorkspace = useActiveWorkspace()
+  const cwd = activeWorkspace?.path ?? ''
+
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -38,7 +28,7 @@ function ClaudeAgentTerminal({
     const container = containerRef.current
     if (!container) return
 
-    const sessionId = `${sessionKey(workspaceId, tabId)}:${crypto.randomUUID()}`
+    const sessionId = `${GLOBAL_TERMINAL_SESSION_PREFIX}:${crypto.randomUUID()}`
     tearingDownRef.current = false
     setBootError(null)
 
@@ -84,7 +74,7 @@ function ClaudeAgentTerminal({
         cwd,
         cols,
         rows,
-        kind: 'claude',
+        kind: 'shell',
       })
 
       if (cancelled || tearingDownRef.current) {
@@ -94,10 +84,7 @@ function ClaudeAgentTerminal({
 
       if (!created.ok) {
         setBootError(created.error)
-        term.writeln(`\r\n\x1b[31mCould not start Claude Code: ${created.error}\x1b[0m`)
-        term.writeln(
-          '\r\nInstall the CLI (https://docs.anthropic.com/claude-code) and ensure `claude` is on your PATH.',
-        )
+        term.writeln(`\r\n\x1b[31mCould not start shell: ${created.error}\x1b[0m`)
         return
       }
 
@@ -110,7 +97,7 @@ function ClaudeAgentTerminal({
         if (payload.sessionId !== sessionId) return
         if (shouldIgnoreExitMessage(payload.exitCode, payload.signal, tearingDownRef.current)) return
         term.writeln(
-          `\r\n\x1b[33mProcess exited (code ${payload.exitCode}${payload.signal != null ? `, signal ${payload.signal}` : ''}).\x1b[0m`,
+          `\r\n\x1b[33mShell exited (code ${payload.exitCode}${payload.signal != null ? `, signal ${payload.signal}` : ''}).\x1b[0m`,
         )
       })
 
@@ -132,51 +119,19 @@ function ClaudeAgentTerminal({
       term.dispose()
       container.replaceChildren()
     }
-  }, [workspaceId, tabId, cwd])
+  }, [cwd])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="mux-terminal-host relative min-h-0 min-w-0 flex-1 basis-0 overflow-hidden px-1 py-1 [&_.xterm]:!h-full [&_.xterm-viewport]:!w-full"
+        className="mux-terminal-host relative min-h-0 min-w-0 flex-1 overflow-hidden px-1 py-0.5 [&_.xterm]:!h-full [&_.xterm-viewport]:!w-full"
       />
       {bootError ? (
         <p className="shrink-0 border-t border-border px-2 py-1 text-[11px] text-destructive">
           {bootError}
         </p>
       ) : null}
-    </div>
-  )
-}
-
-export function ClaudeSessionPane() {
-  const tabId = useAgentTabId()
-  const workspaceId = useWorkspaceSessionScope()
-  const workspace = useWorkspaceById(workspaceId)
-  const tab = useAgentTabsStore(
-    (s) => s.byWorkspaceId[workspaceId]?.tabs.find((t) => t.id === tabId) ?? null,
-  )
-
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-        {tab?.label ?? 'Agent'}
-        {workspace ? (
-          <span className="ml-2 font-mono text-[11px] text-foreground/80">
-            — {workspace.label}
-          </span>
-        ) : (
-          <span className="ml-2 text-amber-200/80">— add a workspace to run Claude</span>
-        )}
-      </div>
-      {!workspace?.path ? (
-        <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          Select or add a workspace folder — Claude Code runs with that directory as{' '}
-          <code className="mx-1 rounded bg-muted px-1 font-mono text-xs">cwd</code>.
-        </div>
-      ) : (
-        <ClaudeAgentTerminal workspaceId={workspaceId} tabId={tabId} cwd={workspace.path} />
-      )}
     </div>
   )
 }

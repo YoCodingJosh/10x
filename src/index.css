@@ -133,3 +133,11 @@
     @apply font-sans;
     }
 }
+
+.mux-terminal-host .xterm {
+  height: 100%;
+}
+.mux-terminal-host .xterm-viewport {
+  width: 100%;
+  background-color: #141414;
+}

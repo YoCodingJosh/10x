@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import Store from 'electron-store'
 
+import { killAllPtySessions, registerPtyIpc } from './pty-manager'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 type WorkspaceEntry = { id: string; path: string; label: string }
@@ -87,6 +89,8 @@ ipcMain.handle(
   },
 )
 
+registerPtyIpc()
+
 ipcMain.handle('dialog:pickWorkspace', async (event) => {
   const parent =
     BrowserWindow.fromWebContents(event.sender) ??
@@ -102,6 +106,10 @@ ipcMain.handle('dialog:pickWorkspace', async (event) => {
 
 app.whenReady().then(() => {
   createWindow()
+})
+
+app.on('before-quit', () => {
+  killAllPtySessions()
 })
 
 app.on('window-all-closed', () => {

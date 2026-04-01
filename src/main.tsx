@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 
 import { createQueryClient } from '@/lib/query-client'
 
-import App from './App'
+import App from '@/App'
 import './index.css'
 
 const queryClient = createQueryClient()
