@@ -47,6 +47,25 @@ declare global {
           message: string
         }) => Promise<{ ok: true } | { ok: false; error: string }>
         push: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        pull: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        workingTreeSummary: (cwd: string) => Promise<
+          | { isRepo: false }
+          | {
+              isRepo: true
+              summary: {
+                branchLabel: string
+                detached: boolean
+                upstreamShort: string | null
+                ahead: number
+                behind: number
+                upstreamGone: boolean
+                stagedCount: number
+                unstagedCount: number
+                untrackedCount: number
+                conflictCount: number
+              }
+            }
+        >
         addRemote: (args: {
           cwd: string
           remoteName: string

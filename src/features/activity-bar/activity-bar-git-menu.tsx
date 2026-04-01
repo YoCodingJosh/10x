@@ -150,15 +150,26 @@ export function ActivityBarGitMenu() {
                 Commit…
               </DropdownMenuItem>
               {hasOrigin ? (
-                <DropdownMenuItem
-                  disabled={busy}
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    void runGitOp('Pushing to origin', () => window.mux.git.push(gitCwd))
-                  }}
-                >
-                  Push
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem
+                    disabled={busy}
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      void runGitOp('Pulling from upstream', () => window.mux.git.pull(gitCwd))
+                    }}
+                  >
+                    Pull
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={busy}
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      void runGitOp('Pushing to origin', () => window.mux.git.push(gitCwd))
+                    }}
+                  >
+                    Push
+                  </DropdownMenuItem>
+                </>
               ) : (
                 <DropdownMenuItem
                   disabled={busy}

@@ -20,6 +20,23 @@ type GitClassifyResult =
 
 type GitRemoteOriginStatus = { isRepo: false } | { isRepo: true; hasOrigin: boolean }
 
+type GitWorkingTreeSummary = {
+  branchLabel: string
+  detached: boolean
+  upstreamShort: string | null
+  ahead: number
+  behind: number
+  upstreamGone: boolean
+  stagedCount: number
+  unstagedCount: number
+  untrackedCount: number
+  conflictCount: number
+}
+
+type GitWorkingTreeSummaryResult =
+  | { isRepo: false }
+  | { isRepo: true; summary: GitWorkingTreeSummary }
+
 type CreateWorktreeResult =
   | { ok: true; worktreePath: string; branch: string }
   | { ok: false; error: string }
@@ -95,6 +112,9 @@ const api = {
     commit: (args: { cwd: string; message: string }): Promise<GitSimpleResult> =>
       ipcRenderer.invoke('git:commit', args),
     push: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:push', cwd),
+    pull: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:pull', cwd),
+    workingTreeSummary: (cwd: string): Promise<GitWorkingTreeSummaryResult> =>
+      ipcRenderer.invoke('git:workingTreeSummary', cwd),
     addRemote: (args: { cwd: string; remoteName: string; url: string }): Promise<GitSimpleResult> =>
       ipcRenderer.invoke('git:addRemote', args),
   },

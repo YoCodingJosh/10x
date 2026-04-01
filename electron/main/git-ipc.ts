@@ -202,6 +202,204 @@ export async function gitPush(rawPath: string): Promise<GitSimpleResult> {
   return { ok: true }
 }
 
+/**
+ * Pulls from upstream when configured (same requirement as a plain `git pull`).
+ */
+export async function gitPull(rawPath: string): Promise<GitSimpleResult> {
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const root = resolved.root
+  const upstream = await runGit(root, ['rev-parse', '--abbrev-ref', '@{u}'])
+  if (!upstream.ok || !upstream.stdout.trim()) {
+    return {
+      ok: false,
+      error: 'No upstream branch configured. Push or set upstream before pulling.',
+    }
+  }
+  const pull = await runGit(root, ['pull', '--no-edit'])
+  if (!pull.ok) return { ok: false, error: pull.error }
+  return { ok: true }
+}
+
+export type GitWorkingTreeSummary = {
+  branchLabel: string
+  detached: boolean
+  upstreamShort: string | null
+  ahead: number
+  behind: number
+  upstreamGone: boolean
+  stagedCount: number
+  unstagedCount: number
+  untrackedCount: number
+  conflictCount: number
+}
+
+export type GitWorkingTreeSummaryResult = { isRepo: false } | { isRepo: true; summary: GitWorkingTreeSummary }
+
+function parseGitStatusBranchLine(line: string): Omit<
+  GitWorkingTreeSummary,
+  'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
+> {
+  const emptyUpstream = {
+    branchLabel: '?',
+    detached: false,
+    upstreamShort: null as string | null,
+    ahead: 0,
+    behind: 0,
+    upstreamGone: false,
+  }
+  if (!line.startsWith('## ')) return emptyUpstream
+
+  const rest = line.slice(3).trim()
+  if (rest.startsWith('HEAD (no branch')) {
+    const at = /at ([\w.-]+)/.exec(rest)
+    return {
+      branchLabel: at ? `Detached @ ${at[1]}` : 'Detached HEAD',
+      detached: true,
+      upstreamShort: null,
+      ahead: 0,
+      behind: 0,
+      upstreamGone: false,
+    }
+  }
+
+  const parseBracket = (bracket: string) => {
+    let ahead = 0
+    let behind = 0
+    let upstreamGone = false
+    if (bracket.includes('gone')) upstreamGone = true
+    const am = /ahead (\d+)/.exec(bracket)
+    const bm = /behind (\d+)/.exec(bracket)
+    if (am) ahead = parseInt(am[1]!, 10)
+    if (bm) behind = parseInt(bm[1]!, 10)
+    return { ahead, behind, upstreamGone }
+  }
+
+  const splitIdx = rest.indexOf('...')
+  if (splitIdx === -1) {
+    const m = /^(.*?)(?:\s+\[([^\]]+)\])?\s*$/.exec(rest)
+    const branchPart = (m?.[1] ?? rest).trim()
+    const bracket = m?.[2]
+    let ahead = 0
+    let behind = 0
+    let upstreamGone = false
+    if (bracket) {
+      const p = parseBracket(bracket)
+      ahead = p.ahead
+      behind = p.behind
+      upstreamGone = p.upstreamGone
+    }
+    return {
+      branchLabel: branchPart || '?',
+      detached: false,
+      upstreamShort: null,
+      ahead,
+      behind,
+      upstreamGone,
+    }
+  }
+
+  const branchLabel = rest.slice(0, splitIdx).trim()
+  let after = rest.slice(splitIdx + 3).trim()
+  let bracket: string | undefined
+  const openB = after.indexOf(' [')
+  if (openB !== -1) {
+    const close = after.lastIndexOf(']')
+    if (close > openB) {
+      bracket = after.slice(openB + 2, close)
+      after = after.slice(0, openB).trim()
+    }
+  }
+  const upstreamShort = after || null
+  let ahead = 0
+  let behind = 0
+  let upstreamGone = false
+  if (bracket) {
+    const p = parseBracket(bracket)
+    ahead = p.ahead
+    behind = p.behind
+    upstreamGone = p.upstreamGone
+  }
+  return {
+    branchLabel: branchLabel || '?',
+    detached: false,
+    upstreamShort,
+    ahead,
+    behind,
+    upstreamGone,
+  }
+}
+
+function parseGitStatusFileLines(fileLines: string[]): Pick<
+  GitWorkingTreeSummary,
+  'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
+> {
+  let stagedCount = 0
+  let unstagedCount = 0
+  let untrackedCount = 0
+  let conflictCount = 0
+
+  for (const line of fileLines) {
+    const t = line.trimEnd()
+    if (t.length < 2) continue
+    const xy = t.slice(0, 2)
+    const x = xy[0]!
+    const y = xy[1]!
+
+    if (xy === '!!') continue
+
+    if (xy === '??') {
+      untrackedCount += 1
+      continue
+    }
+
+    const unmerged =
+      x === 'U' ||
+      y === 'U' ||
+      (x === 'A' && y === 'A') ||
+      (x === 'D' && y === 'D')
+    if (unmerged) {
+      conflictCount += 1
+      continue
+    }
+
+    if (x !== ' ' && x !== '?') stagedCount += 1
+    if (y !== ' ' && y !== '?') unstagedCount += 1
+  }
+
+  return { stagedCount, unstagedCount, untrackedCount, conflictCount }
+}
+
+export async function gitWorkingTreeSummary(rawPath: string): Promise<GitWorkingTreeSummaryResult> {
+  const classified = await gitClassify(rawPath.trim())
+  if (!classified.isRepo) {
+    return { isRepo: false }
+  }
+  const root = classified.toplevel
+  const st = await runGit(root, ['status', '-sb'])
+  if (!st.ok) {
+    return { isRepo: false }
+  }
+
+  const lines = st.stdout.split('\n').map((l) => l.trimEnd()).filter((l) => l.length > 0)
+  let branchLine = '##'
+  const fileLines: string[] = []
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      branchLine = line
+    } else {
+      fileLines.push(line)
+    }
+  }
+
+  const meta = parseGitStatusBranchLine(branchLine)
+  const counts = parseGitStatusFileLines(fileLines)
+  return {
+    isRepo: true,
+    summary: { ...meta, ...counts },
+  }
+}
+
 export async function gitAddRemote(
   rawPath: string,
   remoteName: string,
@@ -538,6 +736,20 @@ export function registerGitIpc() {
       return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
     }
     return gitPush(rawPath.trim())
+  })
+
+  ipcMain.handle('git:pull', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+    }
+    return gitPull(rawPath.trim())
+  })
+
+  ipcMain.handle('git:workingTreeSummary', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { isRepo: false } satisfies GitWorkingTreeSummaryResult
+    }
+    return gitWorkingTreeSummary(rawPath.trim())
   })
 
   ipcMain.handle(
