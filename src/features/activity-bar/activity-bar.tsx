@@ -1,9 +1,14 @@
+import { useState } from 'react'
+
+import { ActivityBarGitMenu } from './activity-bar-git-menu'
 import { Button } from '@/components/ui/button'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
-import { Code2, FolderOpen, Globe } from 'lucide-react'
+import { SettingsDialog } from '@/features/settings/settings-dialog'
+import { Code2, FolderOpen, Globe, Settings } from 'lucide-react'
 
 export function ActivityBar() {
   const active = useActiveWorkspace()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   async function revealActiveWorkspace() {
     const path = active?.path
@@ -33,10 +38,13 @@ export function ActivityBar() {
   }
 
   return (
-    <aside
-      className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-sidebar py-2"
-      aria-label="Activity bar"
-    >
+    <>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <aside
+        className="flex h-full min-h-0 w-12 shrink-0 flex-col items-center border-r border-border bg-sidebar py-2"
+        aria-label="Activity bar"
+      >
+        <div className="flex flex-col items-center gap-1">
       <Button
         type="button"
         variant="ghost"
@@ -67,6 +75,21 @@ export function ActivityBar() {
       >
         <Globe className="size-4" />
       </Button>
-    </aside>
+      <ActivityBarGitMenu />
+        </div>
+        <div className="mt-auto flex flex-col items-center pb-1 pt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Settings"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="size-4" />
+          </Button>
+        </div>
+      </aside>
+    </>
   )
 }

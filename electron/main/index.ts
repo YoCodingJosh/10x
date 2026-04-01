@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import Store from 'electron-store'
 
+import { registerGithubIpc } from './github-ipc'
 import { registerGitIpc } from './git-ipc'
+import { loadEnvFromAppRoot } from './load-env'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
 import { registerShellIpc } from './shell-ipc'
 
@@ -24,6 +26,7 @@ const store = new Store<TenxStoreSchema>({
 })
 
 process.env.APP_ROOT = path.join(__dirname, '../..')
+loadEnvFromAppRoot(process.env.APP_ROOT)
 
 const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
@@ -93,6 +96,7 @@ ipcMain.handle(
 
 registerPtyIpc()
 registerGitIpc()
+registerGithubIpc()
 registerShellIpc()
 
 ipcMain.handle('dialog:pickWorkspace', async (event) => {

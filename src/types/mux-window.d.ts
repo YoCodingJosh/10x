@@ -26,6 +26,9 @@ declare global {
           | { isRepo: false }
           | { isRepo: true; toplevel: string; commonDir: string }
         >
+        remoteOriginStatus: (
+          cwd: string,
+        ) => Promise<{ isRepo: false } | { isRepo: true; hasOrigin: boolean }>
         createWorktree: (args: {
           repoCwd: string
           worktreeName: string
@@ -37,6 +40,60 @@ declare global {
         removeMuxWorktree: (
           worktreePath: string,
         ) => Promise<{ ok: true } | { ok: false; error: string }>
+        init: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        addAll: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        commit: (args: {
+          cwd: string
+          message: string
+        }) => Promise<{ ok: true } | { ok: false; error: string }>
+        push: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        addRemote: (args: {
+          cwd: string
+          remoteName: string
+          url: string
+        }) => Promise<{ ok: true } | { ok: false; error: string }>
+      }
+      github: {
+        deviceStart: () => Promise<
+          | {
+              ok: true
+              userCode: string
+              verificationUri: string
+              verificationUriComplete: string
+              deviceCode: string
+              interval: number
+              expiresIn: number
+            }
+          | { ok: false; error: string }
+        >
+        devicePoll: (deviceCode: string) => Promise<
+          | { status: 'authorized'; login: string }
+          | { status: 'pending' }
+          | { status: 'slow_down' }
+          | { status: 'error'; error: string }
+        >
+        getStatus: () => Promise<{ connected: false } | { connected: true; login: string }>
+        disconnect: () => Promise<{ ok: true }>
+        createRepo: (args: {
+          name: string
+          description?: string
+          private?: boolean
+        }) => Promise<
+          | { ok: true; clone_url: string; ssh_url: string; html_url: string }
+          | { ok: false; error: string }
+        >
+        createRepoAndLink: (args: {
+          cwd: string
+          name: string
+          description?: string
+          private?: boolean
+        }) => Promise<
+          | { ok: true; html_url: string; clone_url: string; ssh_url: string }
+          | { ok: false; error: string }
+        >
+        openNewRepoPage: () => Promise<{ ok: true }>
+        openOAuthAppSettings: () => Promise<{ ok: true }>
+        openDeviceHelp: () => Promise<{ ok: true }>
       }
       pty: {
         create: (opts: {

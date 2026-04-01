@@ -25,6 +25,17 @@ npm run dev
 
 This runs the Vite dev server and launches the Electron shell. Native modules (`node-pty`) are rebuilt on `npm install` via `postinstall`.
 
+### GitHub (Settings)
+
+End users **do not** configure OAuth: **Connect to GitHub** uses GitHub’s [device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow) in the browser with a short code.
+
+**If you ship or develop this app:** register one [GitHub OAuth app](https://github.com/settings/developers) for your distribution (callback URL can be `http://localhost`). Then either:
+
+1. Set the **Client ID** in [`electron/main/github-bundled-oauth-id.ts`](electron/main/github-bundled-oauth-id.ts) (recommended for DMGs—end users need no config), or  
+2. For **local dev**, set `GITHUB_OAUTH_CLIENT_ID` in a `.env` file at the repo root (Electron main loads it on startup via `loadEnvFromAppRoot`).
+
+Optional: `GITHUB_OAUTH_CLIENT_ID` in the process environment overrides both.
+
 ```bash
 npm run typecheck
 ```

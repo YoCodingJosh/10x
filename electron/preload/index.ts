@@ -18,6 +18,8 @@ type GitClassifyResult =
   | { isRepo: false }
   | { isRepo: true; toplevel: string; commonDir: string }
 
+type GitRemoteOriginStatus = { isRepo: false } | { isRepo: true; hasOrigin: boolean }
+
 type CreateWorktreeResult =
   | { ok: true; worktreePath: string; branch: string }
   | { ok: false; error: string }
@@ -27,6 +29,32 @@ type RecoverableWorktree = { path: string; label: string }
 type RemoveMuxWorktreeResult = { ok: true } | { ok: false; error: string }
 
 type GitOpenOriginResult = { ok: true } | { ok: false; error: string }
+
+type GitSimpleResult = { ok: true } | { ok: false; error: string }
+
+type GithubDeviceStart =
+  | {
+      ok: true
+      userCode: string
+      verificationUri: string
+      verificationUriComplete: string
+      deviceCode: string
+      interval: number
+      expiresIn: number
+    }
+  | { ok: false; error: string }
+
+type GithubPoll =
+  | { status: 'authorized'; login: string }
+  | { status: 'pending' }
+  | { status: 'slow_down' }
+  | { status: 'error'; error: string }
+
+type GithubStatus = { connected: false } | { connected: true; login: string }
+
+type GithubCreateRepo =
+  | { ok: true; clone_url: string; ssh_url: string; html_url: string }
+  | { ok: false; error: string }
 
 type ShellResult = { ok: true } | { ok: false; error: string }
 
@@ -52,6 +80,8 @@ const api = {
       ipcRenderer.invoke('git:openOriginInBrowser', cwd),
     classify: (cwd: string): Promise<GitClassifyResult> =>
       ipcRenderer.invoke('git:classify', cwd),
+    remoteOriginStatus: (cwd: string): Promise<GitRemoteOriginStatus> =>
+      ipcRenderer.invoke('git:remoteOriginStatus', cwd),
     createWorktree: (args: {
       repoCwd: string
       worktreeName: string
@@ -60,6 +90,38 @@ const api = {
       ipcRenderer.invoke('git:listRecoverableMuxWorktrees', repoCwd),
     removeMuxWorktree: (worktreePath: string): Promise<RemoveMuxWorktreeResult> =>
       ipcRenderer.invoke('git:removeMuxWorktree', worktreePath),
+    init: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:init', cwd),
+    addAll: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:addAll', cwd),
+    commit: (args: { cwd: string; message: string }): Promise<GitSimpleResult> =>
+      ipcRenderer.invoke('git:commit', args),
+    push: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:push', cwd),
+    addRemote: (args: { cwd: string; remoteName: string; url: string }): Promise<GitSimpleResult> =>
+      ipcRenderer.invoke('git:addRemote', args),
+  },
+  github: {
+    deviceStart: (): Promise<GithubDeviceStart> => ipcRenderer.invoke('github:deviceStart'),
+    devicePoll: (deviceCode: string): Promise<GithubPoll> =>
+      ipcRenderer.invoke('github:devicePoll', deviceCode),
+    getStatus: (): Promise<GithubStatus> => ipcRenderer.invoke('github:getStatus'),
+    disconnect: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:disconnect'),
+    createRepo: (args: {
+      name: string
+      description?: string
+      private?: boolean
+    }): Promise<GithubCreateRepo> => ipcRenderer.invoke('github:createRepo', args),
+    createRepoAndLink: (args: {
+      cwd: string
+      name: string
+      description?: string
+      private?: boolean
+    }): Promise<
+      | { ok: true; html_url: string; clone_url: string; ssh_url: string }
+      | { ok: false; error: string }
+    > => ipcRenderer.invoke('github:createRepoAndLink', args),
+    openNewRepoPage: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:openNewRepoPage'),
+    openOAuthAppSettings: (): Promise<{ ok: true }> =>
+      ipcRenderer.invoke('github:openOAuthAppSettings'),
+    openDeviceHelp: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:openDeviceHelp'),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>

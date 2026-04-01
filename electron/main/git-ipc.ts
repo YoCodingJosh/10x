@@ -129,6 +129,120 @@ export async function openGitOriginInBrowser(cwd: string): Promise<OpenGitOrigin
   }
 }
 
+export type GitSimpleResult = { ok: true } | { ok: false; error: string }
+
+function validateExistingDir(cwd: string): { ok: true; path: string } | { ok: false; error: string } {
+  const p = cwd.trim()
+  if (!p) return { ok: false, error: 'Invalid path.' }
+  if (!existsSync(p)) return { ok: false, error: 'Path does not exist.' }
+  return { ok: true, path: p }
+}
+
+async function resolveRepoRoot(
+  rawPath: string,
+): Promise<{ ok: true; root: string } | { ok: false; error: string }> {
+  const v = validateExistingDir(rawPath)
+  if (!v.ok) return v
+  const classified = await gitClassify(v.path)
+  if (!classified.isRepo) return { ok: false, error: 'Not a Git repository.' }
+  return { ok: true, root: classified.toplevel }
+}
+
+export async function gitInit(rawPath: string): Promise<GitSimpleResult> {
+  const v = validateExistingDir(rawPath)
+  if (!v.ok) return v
+  const classified = await gitClassify(v.path)
+  if (classified.isRepo) {
+    return { ok: false, error: 'Already a Git repository.' }
+  }
+  const r = await runGit(v.path, ['init'])
+  if (!r.ok) return { ok: false, error: r.error }
+  return { ok: true }
+}
+
+export async function gitAddAll(rawPath: string): Promise<GitSimpleResult> {
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const r = await runGit(resolved.root, ['add', '-A'])
+  if (!r.ok) return { ok: false, error: r.error }
+  return { ok: true }
+}
+
+export async function gitCommit(rawPath: string, message: string): Promise<GitSimpleResult> {
+  const msg = message.trim()
+  if (!msg) return { ok: false, error: 'Commit message cannot be empty.' }
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const r = await runGit(resolved.root, ['commit', '-m', msg])
+  if (!r.ok) return { ok: false, error: r.error }
+  return { ok: true }
+}
+
+/**
+ * Pushes the current branch. Uses `git push` when an upstream exists, otherwise
+ * `git push -u origin HEAD` (first push for a new branch / worktree branch).
+ */
+export async function gitPush(rawPath: string): Promise<GitSimpleResult> {
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const root = resolved.root
+  const origin = await runGit(root, ['remote', 'get-url', 'origin'])
+  if (!origin.ok || !origin.stdout) {
+    return {
+      ok: false,
+      error: 'No remote named origin. Add a remote before pushing.',
+    }
+  }
+  const upstream = await runGit(root, ['rev-parse', '--abbrev-ref', '@{u}'])
+  const push = await runGit(
+    root,
+    upstream.ok && upstream.stdout.trim().length > 0 ? ['push'] : ['push', '-u', 'origin', 'HEAD'],
+  )
+  if (!push.ok) return { ok: false, error: push.error }
+  return { ok: true }
+}
+
+export async function gitAddRemote(
+  rawPath: string,
+  remoteName: string,
+  remoteUrl: string,
+): Promise<GitSimpleResult> {
+  const name = remoteName.trim()
+  const url = remoteUrl.trim()
+  if (!name || !url) {
+    return { ok: false, error: 'Remote name and URL are required.' }
+  }
+  const resolved = await resolveRepoRoot(rawPath)
+  if (!resolved.ok) return resolved
+  const existing = await runGit(resolved.root, ['remote', 'get-url', name])
+  if (existing.ok && existing.stdout) {
+    return {
+      ok: false,
+      error: `Remote "${name}" already exists. Remove it first or pick another name.`,
+    }
+  }
+  const r = await runGit(resolved.root, ['remote', 'add', name, url])
+  if (!r.ok) return { ok: false, error: r.error }
+  return { ok: true }
+}
+
+export type GitRemoteOriginStatus =
+  | { isRepo: false }
+  | { isRepo: true; hasOrigin: boolean }
+
+/**
+ * Whether `cwd` is a Git repo and has a remote named `origin`.
+ */
+export async function gitRemoteOriginStatus(rawPath: string): Promise<GitRemoteOriginStatus> {
+  const classified = await gitClassify(rawPath.trim())
+  if (!classified.isRepo) {
+    return { isRepo: false }
+  }
+  const origin = await runGit(classified.toplevel, ['remote', 'get-url', 'origin'])
+  const hasOrigin = origin.ok && Boolean(origin.stdout?.trim())
+  return { isRepo: true, hasOrigin }
+}
+
 export async function gitClassify(cwd: string): Promise<GitClassifyResult> {
   const inside = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'])
   if (!inside.ok || inside.stdout !== 'true') {
@@ -350,6 +464,13 @@ export function registerGitIpc() {
     return gitClassify(cwd)
   })
 
+  ipcMain.handle('git:remoteOriginStatus', async (_e: IpcMainInvokeEvent, cwd: string) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { isRepo: false }
+    }
+    return gitRemoteOriginStatus(cwd.trim())
+  })
+
   ipcMain.handle('git:listRecoverableMuxWorktrees', async (_e: IpcMainInvokeEvent, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd.trim()) {
       return [] as MuxRecoverableWorktree[]
@@ -382,6 +503,56 @@ export function registerGitIpc() {
         return { ok: false, error: 'Invalid path.' }
       }
       return removeMuxWorktree(worktreePath)
+    },
+  )
+
+  ipcMain.handle('git:init', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+    }
+    return gitInit(rawPath.trim())
+  })
+
+  ipcMain.handle('git:addAll', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+    }
+    return gitAddAll(rawPath.trim())
+  })
+
+  ipcMain.handle(
+    'git:commit',
+    async (_e: IpcMainInvokeEvent, args: { cwd: string; message: string }) => {
+      if (typeof args?.cwd !== 'string' || !args.cwd.trim()) {
+        return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+      }
+      if (typeof args?.message !== 'string') {
+        return { ok: false, error: 'Invalid commit message.' } satisfies GitSimpleResult
+      }
+      return gitCommit(args.cwd.trim(), args.message)
+    },
+  )
+
+  ipcMain.handle('git:push', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+    }
+    return gitPush(rawPath.trim())
+  })
+
+  ipcMain.handle(
+    'git:addRemote',
+    async (
+      _e: IpcMainInvokeEvent,
+      args: { cwd: string; remoteName: string; url: string },
+    ) => {
+      if (typeof args?.cwd !== 'string' || !args.cwd.trim()) {
+        return { ok: false, error: 'Invalid path.' } satisfies GitSimpleResult
+      }
+      if (typeof args?.remoteName !== 'string' || typeof args?.url !== 'string') {
+        return { ok: false, error: 'Invalid remote name or URL.' } satisfies GitSimpleResult
+      }
+      return gitAddRemote(args.cwd.trim(), args.remoteName, args.url)
     },
   )
 }
