@@ -8,6 +8,11 @@ export function WorkspaceAgentDesk() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
 
+  const visibleWorkspaceId =
+    activeWorkspaceId != null && workspaces.some((w) => w.id === activeWorkspaceId)
+      ? activeWorkspaceId
+      : (workspaces[0]?.id ?? null)
+
   if (workspaces.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 bg-background p-8 text-center text-sm text-muted-foreground">
@@ -23,7 +28,7 @@ export function WorkspaceAgentDesk() {
           key={ws.id}
           className={cn(
             'flex min-h-0 min-w-0 flex-1 flex-col',
-            ws.id !== activeWorkspaceId && 'hidden',
+            ws.id !== visibleWorkspaceId && 'hidden',
           )}
         >
           <WorkspaceIdProvider workspaceId={ws.id}>

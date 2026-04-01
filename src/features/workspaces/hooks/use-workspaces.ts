@@ -27,18 +27,23 @@ export function usePersistWorkspacesMutation() {
 
 export function useSyncWorkspacesToStore() {
   const { data, isSuccess } = useWorkspacesQuery()
-  const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId)
-  const setActive = useWorkspaceStore((s) => s.setActiveWorkspaceId)
 
   useEffect(() => {
     if (!isSuccess || !data) return
-    setWorkspaces(data)
-    if (activeId === null && data.length > 0) {
-      setActive(data[0].id)
+
+    let nextActive = activeId
+    if (data.length === 0) {
+      nextActive = null
+    } else if (nextActive === null || !data.some((w) => w.id === nextActive)) {
+      nextActive = data[0]!.id
     }
-    if (activeId !== null && !data.some((w) => w.id === activeId)) {
-      setActive(data[0]?.id ?? null)
-    }
-  }, [isSuccess, data, activeId, setWorkspaces, setActive])
+
+    // One setState so we never render with workspaces loaded but activeWorkspaceId still null
+    // (that hid every column: `ws.id !== null` → all `hidden` → blank main area).
+    useWorkspaceStore.setState({
+      workspaces: data,
+      activeWorkspaceId: nextActive,
+    })
+  }, [isSuccess, data, activeId])
 }

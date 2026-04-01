@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { cn } from '@/lib/utils'
 import { Plus, X } from 'lucide-react'
@@ -11,25 +12,33 @@ import { EditableAgentTabLabel } from './editable-agent-tab-label'
 import { TabIdProvider } from './tab-id-context'
 import { useWorkspaceSessionScope } from './workspace-id-context'
 
+/** Stable fallback so Zustand's getSnapshot is not a new `[]` every subscribe (avoids infinite loop). */
+const EMPTY_TABS: readonly AgentTab[] = []
+
 export function AgentSessionsPanel() {
   const workspaceId = useWorkspaceSessionScope()
 
-  const tabs = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.tabs ?? [])
+  const tabs = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.tabs ?? EMPTY_TABS)
   const activeTabId = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.activeTabId ?? null)
   const setActiveTab = useAgentTabsStore((s) => s.setActiveTab)
   const addTab = useAgentTabsStore((s) => s.addTab)
   const closeTab = useAgentTabsStore((s) => s.closeTab)
 
-  if (tabs.length === 0) return null
-
   const resolvedTabId =
-    activeTabId && tabs.some((t) => t.id === activeTabId) ? activeTabId : tabs[0].id
+    tabs.length === 0
+      ? null
+      : activeTabId && tabs.some((t) => t.id === activeTabId)
+        ? activeTabId
+        : tabs[0]!.id
 
   useLayoutEffect(() => {
+    if (resolvedTabId == null) return
     if (resolvedTabId !== activeTabId) {
       setActiveTab(workspaceId, resolvedTabId)
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
+
+  if (tabs.length === 0 || resolvedTabId == null) return null
 
   return (
     <Tabs
