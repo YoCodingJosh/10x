@@ -16,16 +16,6 @@ export function GithubSettingsPanel(_props: SettingsPanelProps) {
       </div>
 
       <GithubAuthConnectSection auth={auth} />
-
-      <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border pt-4 text-[11px]">
-        <button
-          type="button"
-          className="text-primary underline-offset-2 hover:underline"
-          onClick={() => void window.mux.github.openNewRepoPage()}
-        >
-          Open github.com/new
-        </button>
-      </div>
     </div>
   )
 }
