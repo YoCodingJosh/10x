@@ -25,7 +25,6 @@ export function usePersistWorkspacesMutation() {
   })
 }
 
-/** Keeps Zustand in sync with the query cache (persisted list). */
 export function useSyncWorkspacesToStore() {
   const { data, isSuccess } = useWorkspacesQuery()
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces)
