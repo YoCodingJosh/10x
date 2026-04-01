@@ -204,7 +204,7 @@ export function ActivityBarGitMenu() {
                 }}
               >
                 <PlusSquare className="size-3.5 shrink-0 opacity-70" aria-hidden />
-                Stage all changes
+                Stage all
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={busy}
@@ -217,7 +217,7 @@ export function ActivityBarGitMenu() {
                 }}
               >
                 <GitCommitHorizontal className="size-3.5 shrink-0 opacity-70" aria-hidden />
-                Commit…
+                Commit
               </DropdownMenuItem>
               {hasOrigin ? (
                 <>
@@ -230,7 +230,7 @@ export function ActivityBarGitMenu() {
                     }}
                   >
                     <RefreshCw className="size-3.5 shrink-0 opacity-70" aria-hidden />
-                    Fetch from origin
+                    Fetch
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={busy}

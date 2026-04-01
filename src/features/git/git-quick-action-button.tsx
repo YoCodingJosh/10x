@@ -20,6 +20,7 @@ import {
   Github,
   Loader2,
   PlusSquare,
+  RefreshCw,
   Trash2,
 } from 'lucide-react'
 
@@ -27,6 +28,7 @@ const LABEL: Record<GitQuickActionKind, string> = {
   init: 'Initialize',
   publish: 'Publish',
   pull: 'Pull',
+  fetch: 'Fetch from origin',
   stage: 'Stage',
   commit: 'Commit',
   push: 'Push',
@@ -53,10 +55,7 @@ export function GitQuickActionButton({ className }: Props) {
     if (!cwd || normalizeGitCwdKey(cwd) !== normalizeGitCwdKey(wtCwd)) return null
     return muxWorktreeFollowUp
   }, [cwd, wtCwd, muxWorktreeFollowUp])
-  const action = useMemo(
-    () => resolveGitQuickAction(wtForAction, effectiveMuxFollowUp),
-    [wtForAction, effectiveMuxFollowUp],
-  )
+  const action = useMemo(() => resolveGitQuickAction(wtForAction, effectiveMuxFollowUp), [wtForAction, effectiveMuxFollowUp])
 
   const [commitOpen, setCommitOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
@@ -77,10 +76,12 @@ export function GitQuickActionButton({ className }: Props) {
     }
   }
 
-  if (!cwd || action === 'idle') return null
+  if (!cwd) return null
 
   const disabled = busy || action === 'loading'
   const labelText = action === 'loading' ? 'Git' : LABEL[action]
+  const iconOnly = action === 'fetch'
+  const titleText = iconOnly ? `${LABEL.fetch} — ${cwd}` : `${labelText}${action !== 'loading' ? ` — ${cwd}` : ''}`
 
   const iconSz = 'size-3'
   const icon =
@@ -96,6 +97,8 @@ export function GitQuickActionButton({ className }: Props) {
       <Trash2 className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'pull' ? (
       <ArrowDownToLine className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
+    ) : action === 'fetch' ? (
+      <RefreshCw className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'stage' ? (
       <PlusSquare className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'commit' ? (
@@ -115,6 +118,9 @@ export function GitQuickActionButton({ className }: Props) {
         break
       case 'pull':
         void runOp('Pulling from upstream', () => window.mux.git.pull(cwd))
+        break
+      case 'fetch':
+        void runOp('Fetching from origin', () => window.mux.git.fetch(cwd))
         break
       case 'stage':
         void runOp('Staging changes', () => window.mux.git.addAll(cwd))
@@ -136,11 +142,7 @@ export function GitQuickActionButton({ className }: Props) {
         break
       }
       case 'deleteMergedBranch': {
-        if (
-          !window.confirm(
-            'Remove this agent worktree and delete the branch on origin (if it still exists)?',
-          )
-        ) {
+        if (!window.confirm('Remove this agent worktree and delete the branch on origin (if it still exists)?')) {
           return
         }
         if (!visibleWorkspaceId || !cwd) return
@@ -164,18 +166,20 @@ export function GitQuickActionButton({ className }: Props) {
         type="button"
         disabled={disabled}
         onClick={onClick}
-        title={`${labelText}${action !== 'loading' ? ` — ${cwd}` : ''}`}
+        aria-label={iconOnly ? titleText : undefined}
+        title={titleText}
         className={cn(
-          'mr-2 flex h-[18px] max-w-[min(44vw,200px)] shrink-0 items-center gap-1 rounded-md border-0 border-transparent px-1.5',
+          'mr-2 flex h-[18px] shrink-0 items-center rounded-md border-0 border-transparent',
+          iconOnly ? 'min-w-[18px] justify-center px-0.5' : 'max-w-[min(44vw,200px)] min-w-0 gap-1 px-1.5',
           'text-[11px] font-medium text-muted-foreground transition-colors duration-150',
-          'hover:bg-accent hover:text-accent-foreground',
+          'hover:text-accent-foreground',
           'disabled:pointer-events-none disabled:opacity-40',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
           className,
         )}
       >
         {icon}
-        <span className="min-w-0 truncate">{labelText}</span>
+        {!iconOnly ? <span className="min-w-0 truncate">{labelText}</span> : null}
       </button>
 
       <GitCommitMessageDialog

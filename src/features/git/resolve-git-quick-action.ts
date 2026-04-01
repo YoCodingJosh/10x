@@ -5,6 +5,7 @@ export type GitQuickActionKind =
   | 'init'
   | 'publish'
   | 'pull'
+  | 'fetch'
   | 'stage'
   | 'commit'
   | 'push'
@@ -36,7 +37,7 @@ type Wt =
 export function resolveGitQuickAction(
   wt: Wt | null,
   muxWorktreeFollowUp?: MuxWorktreeGitHubFollowUp | null,
-): 'loading' | GitQuickActionKind | 'idle' {
+): 'loading' | GitQuickActionKind {
   if (wt === null) return 'loading'
   if (!wt.isRepo) return 'init'
 
@@ -50,11 +51,11 @@ export function resolveGitQuickAction(
   if (!s.detached && s.upstreamShort == null) return 'push'
   if (muxWorktreeFollowUp?.kind === 'deleteMergedBranch') {
     if (s.isMuxWorktree) return 'deleteMergedBranch'
-    return 'idle'
+    return 'fetch'
   }
   if (muxWorktreeFollowUp?.kind === 'createPr') {
     if (s.isMuxWorktree && !s.isOriginDefaultBranch) return 'createPr'
-    return 'idle'
+    return 'fetch'
   }
-  return 'idle'
+  return 'fetch'
 }
