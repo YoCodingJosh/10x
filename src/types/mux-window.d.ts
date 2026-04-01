@@ -41,6 +41,9 @@ declare global {
         removeMuxWorktree: (
           worktreePath: string,
         ) => Promise<{ ok: true } | { ok: false; error: string }>
+        cleanupMergedMuxWorktree: (
+          cwd: string,
+        ) => Promise<{ ok: true } | { ok: false; error: string }>
         init: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
         addAll: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
         commit: (args: {
@@ -120,7 +123,7 @@ declare global {
           cwd: string,
         ) => Promise<
           | { applicable: false }
-          | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+          | { applicable: true; hasOpenPr: boolean; hasMergedPr: boolean; compareUrl: string }
         >
       }
       pty: {

@@ -12,6 +12,16 @@ const execFileAsync = promisify(execFile)
 
 const WORKTREES_ROOT_SEGMENT = '10x-worktrees'
 
+/** Branch names for agent worktrees: `10x/<slug>`. */
+const WORKTREE_BRANCH_PREFIX = '10x/'
+
+function recoverableWorktreeLabelFromBranch(branch: string | undefined, pathBasename: string): string {
+  if (branch?.startsWith(WORKTREE_BRANCH_PREFIX)) {
+    return branch.slice(WORKTREE_BRANCH_PREFIX.length) || pathBasename
+  }
+  return pathBasename
+}
+
 /** `fix-path` runs a sync login shell to rebuild PATH — do that once per process, not per `git` spawn. */
 let didFixPathForGit = false
 
@@ -554,7 +564,57 @@ function isUnderMuxWorktreesDir(absPath: string): boolean {
   return p === root || p.startsWith(prefix)
 }
 
+/**
+ * `git worktree remove` must be run with the **main** checkout as cwd, not a linked worktree.
+ * Walks up from `commonDir` (…/.git or …/.git/worktrees/…) to the primary working tree.
+ */
+function gitMainWorkingTreeRoot(classified: { toplevel: string; commonDir: string }): string {
+  const common = path.normalize(classified.commonDir)
+  let p = common
+  for (let i = 0; i < 32; i++) {
+    if (path.basename(p) === '.git') {
+      return path.dirname(p)
+    }
+    const parent = path.dirname(p)
+    if (parent === p) break
+    p = parent
+  }
+  return classified.toplevel
+}
+
 export type RemoveMuxWorktreeResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * After a merged PR: best-effort `git push origin --delete <branch>`, then remove the Mux worktree.
+ */
+export async function gitCleanupMergedMuxWorktree(rawPath: string): Promise<RemoveMuxWorktreeResult> {
+  const v = validateExistingDir(rawPath)
+  if (!v.ok) return v
+  const classified = await gitClassify(v.path)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a Git repository.' }
+  }
+  const top = classified.toplevel
+  if (!isUnderMuxWorktreesDir(top)) {
+    return {
+      ok: false,
+      error: 'Only agent worktrees under ~/10x-worktrees can be cleaned up this way.',
+    }
+  }
+
+  const br = await runGit(top, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  if (!br.ok || !br.stdout?.trim()) {
+    return { ok: false, error: 'Could not read current branch.' }
+  }
+  const branch = br.stdout.trim()
+  if (branch === 'HEAD') {
+    return { ok: false, error: 'Detached HEAD.' }
+  }
+
+  await runGit(top, ['push', 'origin', '--delete', branch])
+
+  return removeMuxWorktree(top)
+}
 
 /**
  * Removes a 10x-managed linked worktree (~/10x-worktrees/...) from Git and deletes the directory.
@@ -583,8 +643,8 @@ export async function removeMuxWorktree(worktreePath: string): Promise<RemoveMux
     }
   }
 
-  const cwdForGit = classified.toplevel
-  let r = await runGit(cwdForGit, [
+  const mainRoot = gitMainWorkingTreeRoot(classified)
+  let r = await runGit(mainRoot, [
     'worktree',
     'remove',
     '--force',
@@ -592,7 +652,7 @@ export async function removeMuxWorktree(worktreePath: string): Promise<RemoveMux
     normalized,
   ])
   if (!r.ok) {
-    r = await runGit(cwdForGit, ['worktree', 'remove', '--force', normalized])
+    r = await runGit(mainRoot, ['worktree', 'remove', '--force', normalized])
   }
 
   if (!r.ok) {
@@ -658,7 +718,7 @@ export async function listRecoverableMuxWorktrees(repoCwd: string): Promise<MuxR
     seen.add(wtPath)
 
     const base = path.basename(wtPath)
-    const label = branch?.startsWith('mux/') ? branch.slice('mux/'.length) : base
+    const label = recoverableWorktreeLabelFromBranch(branch, base)
 
     result.push({ path: wtPath, label: label || base })
   }
@@ -694,7 +754,7 @@ export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<Creat
     return r.ok
   }
 
-  const branchBase = `mux/${wtSlug}`
+  const branchBase = `${WORKTREE_BRANCH_PREFIX}${wtSlug}`
   let branch: string | null = null
   for (let n = 0; n < 100; n++) {
     const candidate = n === 0 ? branchBase : `${branchBase}-${n}`
@@ -777,6 +837,13 @@ export function registerGitIpc() {
       return removeMuxWorktree(worktreePath)
     },
   )
+
+  ipcMain.handle('git:cleanupMergedMuxWorktree', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' }
+    }
+    return gitCleanupMergedMuxWorktree(rawPath.trim())
+  })
 
   ipcMain.handle('git:init', async (_e: IpcMainInvokeEvent, rawPath: string) => {
     if (typeof rawPath !== 'string' || !rawPath.trim()) {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
 
@@ -28,6 +29,8 @@ type AgentTabsState = {
   setActiveTab: (workspaceId: string, tabId: string) => void
   addTab: (workspaceId: string, opts?: { agentPath?: string; label?: string }) => void
   closeTab: (workspaceId: string, tabId: string) => void
+  /** Close the agent tab whose worktree path matches (e.g. after removing the worktree on disk). */
+  closeTabByAgentPath: (workspaceId: string, agentPath: string) => boolean
   renameTab: (workspaceId: string, tabId: string, label: string) => void
 }
 
@@ -111,6 +114,19 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
         [workspaceId]: { tabs, activeTabId: nextActive },
       },
     }))
+  },
+
+  closeTabByAgentPath: (workspaceId, agentPath) => {
+    const key = normalizeGitCwdKey(agentPath)
+    if (!key) return false
+    const bucket = get().byWorkspaceId[workspaceId]
+    if (!bucket) return false
+    const tab = bucket.tabs.find(
+      (t) => t.agentPath != null && normalizeGitCwdKey(t.agentPath) === key,
+    )
+    if (!tab) return false
+    get().closeTab(workspaceId, tab.id)
+    return true
   },
 
   renameTab: (workspaceId, tabId, label) => {

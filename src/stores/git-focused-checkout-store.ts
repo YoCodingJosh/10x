@@ -15,6 +15,10 @@ export type GitFocusedCheckoutLoadState =
   | { kind: 'not-repo' }
   | { kind: 'ok'; presentation: WorkingTreePresentation }
 
+export type MuxWorktreeGitHubFollowUp =
+  | { kind: 'createPr'; compareUrl: string }
+  | { kind: 'deleteMergedBranch' }
+
 type GitFocusedCheckoutState = {
   /** Checkout we poll: visible workspace root or active tab worktree path. */
   focusCwd: string | null
@@ -22,8 +26,8 @@ type GitFocusedCheckoutState = {
   wt: WtResult | null
   /** `cwd` that `wt` was fetched for (compare with `useGitCwdForVisibleWorkspace()`). */
   wtCwd: string | null
-  /** GitHub compare URL for “Create PR” when branch is pushed and no open PR (Mux worktrees). */
-  createPrCompareUrl: string | null
+  /** Post-push Mux worktree GitHub action (open PR vs clean up after merge). */
+  muxWorktreeFollowUp: MuxWorktreeGitHubFollowUp | null
   loadState: GitFocusedCheckoutLoadState
   /** Call when `useGitCwdForVisibleWorkspace` changes. */
   syncFocusCwd: (cwd: string | null) => void
@@ -42,7 +46,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
   focusCwd: null,
   wt: null,
   wtCwd: null,
-  createPrCompareUrl: null,
+  muxWorktreeFollowUp: null,
   loadState: { kind: 'idle' },
 
   syncFocusCwd(cwd) {
@@ -51,7 +55,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
       focusCwd: cwd,
       wt: null,
       wtCwd: null,
-      createPrCompareUrl: null,
+      muxWorktreeFollowUp: null,
       loadState: !cwd ? { kind: 'idle' } : { kind: 'loading' },
     })
     void get().tick({ showSpinner: true })
@@ -60,7 +64,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
   tick: async (opts) => {
     const cwd = get().focusCwd
     if (!cwd) {
-      set({ wt: null, wtCwd: null, createPrCompareUrl: null, loadState: { kind: 'idle' } })
+      set({ wt: null, wtCwd: null, muxWorktreeFollowUp: null, loadState: { kind: 'idle' } })
       return
     }
     const cwdKey = normalizeGitCwdKey(cwd)
@@ -86,7 +90,7 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
 
     if (!r.isRepo || !summaryEligibleForCreatePrFetch(r.summary)) {
       createPrContextSerial += 1
-      set({ createPrCompareUrl: null })
+      set({ muxWorktreeFollowUp: null })
       return
     }
     const prSn = ++createPrContextSerial
@@ -94,9 +98,13 @@ export const useGitFocusedCheckoutStore = create<GitFocusedCheckoutState>((set, 
       if (normalizeGitCwdKey(get().focusCwd) !== cwdKey) return
       if (prSn !== createPrContextSerial) return
       if (ctx.applicable && !ctx.hasOpenPr) {
-        set({ createPrCompareUrl: ctx.compareUrl })
+        if (ctx.hasMergedPr) {
+          set({ muxWorktreeFollowUp: { kind: 'deleteMergedBranch' } })
+        } else {
+          set({ muxWorktreeFollowUp: { kind: 'createPr', compareUrl: ctx.compareUrl } })
+        }
       } else {
-        set({ createPrCompareUrl: null })
+        set({ muxWorktreeFollowUp: null })
       }
     })
   },

@@ -79,7 +79,7 @@ type ShellResult = { ok: true } | { ok: false; error: string }
 
 type GithubCreatePrContext =
   | { applicable: false }
-  | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+  | { applicable: true; hasOpenPr: boolean; hasMergedPr: boolean; compareUrl: string }
 
 const api = {
   store: {
@@ -114,6 +114,8 @@ const api = {
       ipcRenderer.invoke('git:listRecoverableMuxWorktrees', repoCwd),
     removeMuxWorktree: (worktreePath: string): Promise<RemoveMuxWorktreeResult> =>
       ipcRenderer.invoke('git:removeMuxWorktree', worktreePath),
+    cleanupMergedMuxWorktree: (cwd: string): Promise<RemoveMuxWorktreeResult> =>
+      ipcRenderer.invoke('git:cleanupMergedMuxWorktree', cwd),
     init: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:init', cwd),
     addAll: (cwd: string): Promise<GitSimpleResult> => ipcRenderer.invoke('git:addAll', cwd),
     commit: (args: { cwd: string; message: string }): Promise<GitSimpleResult> =>

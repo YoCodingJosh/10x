@@ -6,7 +6,9 @@ import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
 import type { GitQuickActionKind } from '@/features/git/resolve-git-quick-action'
 import { resolveGitQuickAction } from '@/features/git/resolve-git-quick-action'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
+import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
+import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import {
@@ -18,6 +20,7 @@ import {
   Github,
   Loader2,
   PlusSquare,
+  Trash2,
 } from 'lucide-react'
 
 const LABEL: Record<GitQuickActionKind, string> = {
@@ -28,6 +31,7 @@ const LABEL: Record<GitQuickActionKind, string> = {
   commit: 'Commit',
   push: 'Push',
   createPr: 'Create PR',
+  deleteMergedBranch: 'Delete branch',
 }
 
 type Props = {
@@ -37,20 +41,21 @@ type Props = {
 /** Status-bar contextual git action; reads shared poll state (no extra IPC beyond summary). */
 export function GitQuickActionButton({ className }: Props) {
   const cwd = useGitCwdForVisibleWorkspace()
+  const visibleWorkspaceId = useVisibleWorkspaceId()
   const wt = useGitFocusedCheckoutStore((s) => s.wt)
   const wtCwd = useGitFocusedCheckoutStore((s) => s.wtCwd)
-  const createPrCompareUrl = useGitFocusedCheckoutStore((s) => s.createPrCompareUrl)
+  const muxWorktreeFollowUp = useGitFocusedCheckoutStore((s) => s.muxWorktreeFollowUp)
   const wtForAction = useMemo(() => {
     if (!cwd) return null
     return normalizeGitCwdKey(cwd) === normalizeGitCwdKey(wtCwd) ? wt : null
   }, [cwd, wt, wtCwd])
-  const effectiveCreatePrUrl = useMemo(() => {
+  const effectiveMuxFollowUp = useMemo(() => {
     if (!cwd || normalizeGitCwdKey(cwd) !== normalizeGitCwdKey(wtCwd)) return null
-    return createPrCompareUrl
-  }, [cwd, wtCwd, createPrCompareUrl])
+    return muxWorktreeFollowUp
+  }, [cwd, wtCwd, muxWorktreeFollowUp])
   const action = useMemo(
-    () => resolveGitQuickAction(wtForAction, effectiveCreatePrUrl),
-    [wtForAction, effectiveCreatePrUrl],
+    () => resolveGitQuickAction(wtForAction, effectiveMuxFollowUp),
+    [wtForAction, effectiveMuxFollowUp],
   )
 
   const [commitOpen, setCommitOpen] = useState(false)
@@ -87,6 +92,8 @@ export function GitQuickActionButton({ className }: Props) {
       <Github className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'createPr' ? (
       <GitPullRequestCreateArrow className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
+    ) : action === 'deleteMergedBranch' ? (
+      <Trash2 className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'pull' ? (
       <ArrowDownToLine className={cn(iconSz, 'shrink-0 opacity-90')} aria-hidden />
     ) : action === 'stage' ? (
@@ -119,11 +126,31 @@ export function GitQuickActionButton({ className }: Props) {
         void runOp('Pushing to origin', () => window.mux.git.push(cwd))
         break
       case 'createPr': {
-        const url = effectiveCreatePrUrl
-        if (!url) return
+        if (effectiveMuxFollowUp?.kind !== 'createPr') return
+        const url = effectiveMuxFollowUp.compareUrl
         void runWithStatusActivity({ domain: 'github', label: 'Opening pull request', detail: url }, async () => {
           const r = await window.mux.shell.openExternal(url)
           if (!r.ok) window.alert(r.error)
+          return r
+        })
+        break
+      }
+      case 'deleteMergedBranch': {
+        if (
+          !window.confirm(
+            'Remove this agent worktree and delete the branch on origin (if it still exists)?',
+          )
+        ) {
+          return
+        }
+        if (!visibleWorkspaceId || !cwd) return
+        void runWithStatusActivity({ domain: 'git', label: 'Cleaning up merged branch', detail: cwd }, async () => {
+          const r = await window.mux.git.cleanupMergedMuxWorktree(cwd)
+          if (!r.ok) window.alert(r.error)
+          else {
+            useAgentTabsStore.getState().closeTabByAgentPath(visibleWorkspaceId, cwd)
+            await refreshFocusedCheckoutGit()
+          }
           return r
         })
         break

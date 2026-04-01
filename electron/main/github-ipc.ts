@@ -130,7 +130,7 @@ async function githubApiGetJson<T>(
 
 export type GithubCreatePrContext =
   | { applicable: false }
-  | { applicable: true; hasOpenPr: boolean; compareUrl: string }
+  | { applicable: true; hasOpenPr: boolean; hasMergedPr: boolean; compareUrl: string }
 
 export async function githubGetCreatePrContext(cwd: string): Promise<GithubCreatePrContext> {
   const b = await gitGithubCompareBasics(cwd.trim())
@@ -153,17 +153,29 @@ export async function githubGetCreatePrContext(cwd: string): Promise<GithubCreat
 
   const compareUrl = `https://github.com/${owner}/${repo}/compare/${encodeURIComponent(defaultBranch)}...${encodeURIComponent(branch)}?expand=1`
 
-  let hasOpenPr = false
   const headQ = encodeURIComponent(`${owner}:${branch}`)
-  const pullsRes = await githubApiGetJson<{ number: number }[]>(
+
+  let hasOpenPr = false
+  const pullsOpen = await githubApiGetJson<{ merged_at?: string | null }[]>(
     `/repos/${owner}/${repo}/pulls?state=open&head=${headQ}`,
     token,
   )
-  if (pullsRes.ok && Array.isArray(pullsRes.data)) {
-    hasOpenPr = pullsRes.data.length > 0
+  if (pullsOpen.ok && Array.isArray(pullsOpen.data)) {
+    hasOpenPr = pullsOpen.data.length > 0
   }
 
-  return { applicable: true, hasOpenPr, compareUrl }
+  let hasMergedPr = false
+  if (!hasOpenPr) {
+    const pullsClosed = await githubApiGetJson<{ merged_at?: string | null }[]>(
+      `/repos/${owner}/${repo}/pulls?state=closed&head=${headQ}&per_page=15&sort=updated&direction=desc`,
+      token,
+    )
+    if (pullsClosed.ok && Array.isArray(pullsClosed.data)) {
+      hasMergedPr = pullsClosed.data.some((p) => p.merged_at != null && String(p.merged_at).length > 0)
+    }
+  }
+
+  return { applicable: true, hasOpenPr, hasMergedPr, compareUrl }
 }
 
 async function fetchGithubUser(token: string): Promise<{ login: string } | null> {

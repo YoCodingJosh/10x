@@ -62,7 +62,7 @@ export function CloseAgentWorktreeDialog({
             <p>
               This closes <span className="font-medium text-foreground">{agentLabel}</span> and{' '}
               <strong className="text-foreground">deletes</strong> the Git worktree on disk, including
-              uncommitted changes. The linked branch under <code className="text-xs">mux/</code> is
+              uncommitted changes. The linked branch under <code className="text-xs">10x/</code> is
               removed when Git allows it.
             </p>
             <p className="break-all rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-foreground/90">

@@ -1,3 +1,5 @@
+import type { MuxWorktreeGitHubFollowUp } from '@/stores/git-focused-checkout-store'
+
 /** Primary action for the focused checkout quick control (status bar / rail). */
 export type GitQuickActionKind =
   | 'init'
@@ -7,6 +9,7 @@ export type GitQuickActionKind =
   | 'commit'
   | 'push'
   | 'createPr'
+  | 'deleteMergedBranch'
 
 type Wt =
   | { isRepo: false }
@@ -25,12 +28,12 @@ type Wt =
     }
 
 /**
- * Uses `workingTreeSummary` and optional `createPrCompareUrl` from the focused-checkout store
- * (GitHub compare link when a Mux worktree branch is fully pushed and has no open PR).
+ * Uses `workingTreeSummary` and optional `muxWorktreeFollowUp` from the focused-checkout store
+ * (GitHub PR compare vs cleanup after a merged PR).
  */
 export function resolveGitQuickAction(
   wt: Wt | null,
-  createPrCompareUrl?: string | null,
+  muxWorktreeFollowUp?: MuxWorktreeGitHubFollowUp | null,
 ): 'loading' | GitQuickActionKind | 'idle' {
   if (wt === null) return 'loading'
   if (!wt.isRepo) return 'init'
@@ -43,6 +46,7 @@ export function resolveGitQuickAction(
   if (!s.hasOrigin) return 'publish'
   if (s.ahead > 0) return 'push'
   if (!s.detached && s.upstreamShort == null) return 'push'
-  if (createPrCompareUrl) return 'createPr'
+  if (muxWorktreeFollowUp?.kind === 'deleteMergedBranch') return 'deleteMergedBranch'
+  if (muxWorktreeFollowUp?.kind === 'createPr') return 'createPr'
   return 'idle'
 }

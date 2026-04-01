@@ -16,7 +16,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
+import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
+import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { refreshFocusedCheckoutGit } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import {
@@ -28,15 +30,19 @@ import {
   GitPullRequestCreateArrow,
   Github,
   PlusSquare,
+  Trash2,
 } from 'lucide-react'
 
 export function ActivityBarGitMenu() {
   const gitCwd = useGitCwdForVisibleWorkspace()
+  const visibleWorkspaceId = useVisibleWorkspaceId()
   const [menuOpen, setMenuOpen] = useState(false)
   const [isRepo, setIsRepo] = useState<boolean | null>(null)
   const [hasOrigin, setHasOrigin] = useState<boolean | null>(null)
-  /** Mux worktree + GitHub + no open PR → compare URL for PR form */
-  const [createPrMenu, setCreatePrMenu] = useState<{ compareUrl: string } | null>(null)
+  /** Mux worktree GitHub follow-up: open PR or clean up after merge */
+  const [prFollowUpMenu, setPrFollowUpMenu] = useState<
+    { kind: 'createPr'; compareUrl: string } | { kind: 'deleteMerged' } | null
+  >(null)
   const [busy, setBusy] = useState(false)
   const [commitOpen, setCommitOpen] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
@@ -46,10 +52,10 @@ export function ActivityBarGitMenu() {
     if (!gitCwd) {
       setIsRepo(null)
       setHasOrigin(null)
-      setCreatePrMenu(null)
+      setPrFollowUpMenu(null)
       return
     }
-    setCreatePrMenu(null)
+    setPrFollowUpMenu(null)
     const o = await window.mux.git.remoteOriginStatus(gitCwd)
     if (!o.isRepo) {
       setIsRepo(false)
@@ -60,7 +66,8 @@ export function ActivityBarGitMenu() {
     setHasOrigin(o.hasOrigin)
     const pr = await window.mux.github.getCreatePrContext(gitCwd)
     if (pr.applicable && !pr.hasOpenPr) {
-      setCreatePrMenu({ compareUrl: pr.compareUrl })
+      if (pr.hasMergedPr) setPrFollowUpMenu({ kind: 'deleteMerged' })
+      else setPrFollowUpMenu({ kind: 'createPr', compareUrl: pr.compareUrl })
     }
   }, [gitCwd])
 
@@ -107,6 +114,35 @@ export function ActivityBarGitMenu() {
     setCommitOpen(false)
     setCommitMessage('')
     void runGitOp('Committing', () => window.mux.git.commit({ cwd: gitCwd, message: msg }))
+  }
+
+  async function runMergedBranchCleanup() {
+    if (!gitCwd || !visibleWorkspaceId) return
+    if (
+      !window.confirm(
+        'Remove this agent worktree and delete the branch on origin (if it still exists)?',
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    try {
+      await runWithStatusActivity(
+        { domain: 'git', label: 'Cleaning up merged branch', detail: gitCwd },
+        async () => {
+          const r = await window.mux.git.cleanupMergedMuxWorktree(gitCwd)
+          if (!r.ok) window.alert(r.error)
+          else {
+            useAgentTabsStore.getState().closeTabByAgentPath(visibleWorkspaceId, gitCwd)
+            await refreshRepoState()
+            void refreshFocusedCheckoutGit()
+          }
+          return r
+        },
+      )
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -200,20 +236,33 @@ export function ActivityBarGitMenu() {
                     <ArrowUpFromLine className="size-3.5 shrink-0 opacity-70" aria-hidden />
                     Push
                   </DropdownMenuItem>
-                  {createPrMenu ? (
+                  {prFollowUpMenu?.kind === 'createPr' ? (
                     <DropdownMenuItem
                       disabled={busy}
                       className="gap-2"
                       onSelect={(e) => {
                         e.preventDefault()
                         setMenuOpen(false)
-                        void window.mux.shell.openExternal(createPrMenu.compareUrl).then((r) => {
+                        void window.mux.shell.openExternal(prFollowUpMenu.compareUrl).then((r) => {
                           if (!r.ok) window.alert(r.error)
                         })
                       }}
                     >
                       <GitPullRequestCreateArrow className="size-3.5 shrink-0 opacity-70" aria-hidden />
                       Create pull request…
+                    </DropdownMenuItem>
+                  ) : prFollowUpMenu?.kind === 'deleteMerged' ? (
+                    <DropdownMenuItem
+                      disabled={busy}
+                      className="gap-2"
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        setMenuOpen(false)
+                        void runMergedBranchCleanup()
+                      }}
+                    >
+                      <Trash2 className="size-3.5 shrink-0 opacity-70" aria-hidden />
+                      Delete branch & remove worktree…
                     </DropdownMenuItem>
                   ) : null}
                 </>
