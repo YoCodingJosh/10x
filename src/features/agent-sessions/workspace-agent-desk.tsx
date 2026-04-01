@@ -1,3 +1,4 @@
+import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { cn } from '@/lib/utils'
 
@@ -6,12 +7,7 @@ import { WorkspaceIdProvider } from './workspace-id-context'
 
 export function WorkspaceAgentDesk() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
-  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
-
-  const visibleWorkspaceId =
-    activeWorkspaceId != null && workspaces.some((w) => w.id === activeWorkspaceId)
-      ? activeWorkspaceId
-      : (workspaces[0]?.id ?? null)
+  const visibleWorkspaceId = useVisibleWorkspaceId()
 
   if (workspaces.length === 0) {
     return (
@@ -21,6 +17,8 @@ export function WorkspaceAgentDesk() {
     )
   }
 
+  const visibleId = visibleWorkspaceId ?? workspaces[0]!.id
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {workspaces.map((ws) => (
@@ -28,7 +26,7 @@ export function WorkspaceAgentDesk() {
           key={ws.id}
           className={cn(
             'flex min-h-0 min-w-0 flex-1 flex-col',
-            ws.id !== visibleWorkspaceId && 'hidden',
+            ws.id !== visibleId && 'hidden',
           )}
         >
           <WorkspaceIdProvider workspaceId={ws.id}>

@@ -2,24 +2,25 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 
-import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
-
 import '@xterm/xterm/css/xterm.css'
 
-/** Prefix only; each mount gets a unique session id so stale exit events never match. */
-export const GLOBAL_TERMINAL_SESSION_PREFIX = 'mux:global-shell'
+export function workspaceShellSessionId(workspaceId: string) {
+  return `mux:shell:${workspaceId}`
+}
 
 function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown = false): boolean {
   if (tearingDown) return true
-  // node-pty kill() typically ends the child with SIGHUP (1); not a "crash" to announce.
   if (exitCode === 0 && signal === 1) return true
   return false
 }
 
-export function GlobalShellTerminal() {
-  const activeWorkspace = useActiveWorkspace()
-  const cwd = activeWorkspace?.path ?? ''
+type Props = {
+  workspaceId: string
+  cwd: string
+}
 
+/** One login shell per workspace; parent keeps all instances mounted (hidden) so history survives focus switches. */
+export function WorkspaceShellTerminal({ workspaceId, cwd }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -28,7 +29,7 @@ export function GlobalShellTerminal() {
     const container = containerRef.current
     if (!container) return
 
-    const sessionId = `${GLOBAL_TERMINAL_SESSION_PREFIX}:${crypto.randomUUID()}`
+    const sessionId = workspaceShellSessionId(workspaceId)
     tearingDownRef.current = false
     setBootError(null)
 
@@ -119,7 +120,7 @@ export function GlobalShellTerminal() {
       term.dispose()
       container.replaceChildren()
     }
-  }, [cwd])
+  }, [workspaceId, cwd])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
