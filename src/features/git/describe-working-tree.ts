@@ -6,6 +6,7 @@ export type GitWorkingTreeSummaryDTO = {
   ahead: number
   behind: number
   upstreamGone: boolean
+  hasOrigin: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -104,7 +105,9 @@ export function presentWorkingTreeSummary(s: GitWorkingTreeSummaryDTO): WorkingT
 
   if (!dirty && !ul && !s.detached) {
     rows.push({
-      text: 'Working tree clean — no upstream (publish or push to link a remote)',
+      text: s.hasOrigin
+        ? 'Working tree clean — no upstream (push to link this branch to the remote)'
+        : 'Working tree clean — no upstream (publish or push to link a remote)',
       className: muted,
     })
     return { branchDisplay, detached, rows }

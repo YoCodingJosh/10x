@@ -192,8 +192,7 @@ export async function gitPush(rawPath: string): Promise<GitSimpleResult> {
   const resolved = await resolveRepoRoot(rawPath)
   if (!resolved.ok) return resolved
   const root = resolved.root
-  const origin = await runGit(root, ['remote', 'get-url', 'origin'])
-  if (!origin.ok || !origin.stdout) {
+  if (!(await gitRepoHasOriginRemote(root))) {
     return {
       ok: false,
       error: 'No remote named origin. Add a remote before pushing.',
@@ -234,6 +233,8 @@ export type GitWorkingTreeSummary = {
   ahead: number
   behind: number
   upstreamGone: boolean
+  /** Whether `git remote get-url origin` succeeds (same signal as `gitRemoteOriginStatus`). */
+  hasOrigin: boolean
   stagedCount: number
   unstagedCount: number
   untrackedCount: number
@@ -244,7 +245,7 @@ export type GitWorkingTreeSummaryResult = { isRepo: false } | { isRepo: true; su
 
 function parseGitStatusBranchLine(line: string): Omit<
   GitWorkingTreeSummary,
-  'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
+  'hasOrigin' | 'stagedCount' | 'unstagedCount' | 'untrackedCount' | 'conflictCount'
 > {
   const emptyUpstream = {
     branchLabel: '?',
@@ -376,6 +377,22 @@ function parseGitStatusFileLines(fileLines: string[]): Pick<
   return { stagedCount, unstagedCount, untrackedCount, conflictCount }
 }
 
+/**
+ * Whether `origin` exists: `get-url` is enough when Git is healthy; fall back to `git remote`
+ * (some setups report get-url failure while the remote is still configured).
+ */
+async function gitRepoHasOriginRemote(repoRoot: string): Promise<boolean> {
+  const url = await runGit(repoRoot, ['remote', 'get-url', 'origin'])
+  if (url.ok && url.stdout?.trim()) return true
+  const rem = await runGit(repoRoot, ['remote'])
+  if (!rem.ok || !rem.stdout?.trim()) return false
+  return rem.stdout
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .includes('origin')
+}
+
 export async function gitWorkingTreeSummary(rawPath: string): Promise<GitWorkingTreeSummaryResult> {
   const classified = await gitClassify(rawPath.trim())
   if (!classified.isRepo) {
@@ -400,9 +417,10 @@ export async function gitWorkingTreeSummary(rawPath: string): Promise<GitWorking
 
   const meta = parseGitStatusBranchLine(branchLine)
   const counts = parseGitStatusFileLines(fileLines)
+  const hasOrigin = await gitRepoHasOriginRemote(root)
   return {
     isRepo: true,
-    summary: { ...meta, ...counts },
+    summary: { ...meta, ...counts, hasOrigin },
   }
 }
 
@@ -442,8 +460,7 @@ export async function gitRemoteOriginStatus(rawPath: string): Promise<GitRemoteO
   if (!classified.isRepo) {
     return { isRepo: false }
   }
-  const origin = await runGit(classified.toplevel, ['remote', 'get-url', 'origin'])
-  const hasOrigin = origin.ok && Boolean(origin.stdout?.trim())
+  const hasOrigin = await gitRepoHasOriginRemote(classified.toplevel)
   return { isRepo: true, hasOrigin }
 }
 

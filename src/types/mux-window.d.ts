@@ -59,6 +59,7 @@ declare global {
                 ahead: number
                 behind: number
                 upstreamGone: boolean
+                hasOrigin: boolean
                 stagedCount: number
                 unstagedCount: number
                 untrackedCount: number

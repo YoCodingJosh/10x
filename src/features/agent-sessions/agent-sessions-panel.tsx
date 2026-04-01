@@ -10,10 +10,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
+import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import { GitBranchPlus, Plus, X } from 'lucide-react'
 
@@ -28,6 +30,9 @@ const EMPTY_TABS: readonly AgentTab[] = []
 export function AgentSessionsPanel() {
   const workspaceId = useWorkspaceSessionScope()
   const workspace = useWorkspaceById(workspaceId)
+  const visibleWorkspaceId = useVisibleWorkspaceId()
+  const isVisiblePanel = visibleWorkspaceId === workspaceId
+  const storeWt = useGitFocusedCheckoutStore((s) => s.wt)
 
   const tabs = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.tabs ?? EMPTY_TABS)
   const activeTabId = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.activeTabId ?? null)
@@ -44,27 +49,36 @@ export function AgentSessionsPanel() {
     label: string
   } | null>(null)
 
-  const [repoKind, setRepoKind] = useState<'loading' | 'git' | 'plain'>('loading')
+  const [hiddenRepoKind, setHiddenRepoKind] = useState<'loading' | 'git' | 'plain'>('loading')
 
   useEffect(() => {
     if (worktreeOpen) setCreateError(null)
   }, [worktreeOpen])
 
   useEffect(() => {
+    if (isVisiblePanel) return
     if (!workspace?.path) {
-      setRepoKind('plain')
+      setHiddenRepoKind('plain')
       return
     }
     let cancelled = false
-    setRepoKind('loading')
+    setHiddenRepoKind('loading')
     void window.mux.git.classify(workspace.path).then((c) => {
       if (cancelled) return
-      setRepoKind(c.isRepo ? 'git' : 'plain')
+      setHiddenRepoKind(c.isRepo ? 'git' : 'plain')
     })
     return () => {
       cancelled = true
     }
-  }, [workspace?.path])
+  }, [isVisiblePanel, workspace?.path])
+
+  const repoKind: 'loading' | 'git' | 'plain' = isVisiblePanel
+    ? storeWt === null
+      ? 'loading'
+      : storeWt.isRepo
+        ? 'git'
+        : 'plain'
+    : hiddenRepoKind
 
   function openGitWorktreeDialog() {
     setWorktreeDialogFirst(tabs.length === 0)
@@ -86,7 +100,7 @@ export function AgentSessionsPanel() {
           window.alert(r.error)
           return r
         }
-        setRepoKind('git')
+        void refreshFocusedCheckoutGit()
         return r
       },
     )
@@ -138,6 +152,7 @@ export function AgentSessionsPanel() {
           agentPath: result.worktreePath,
           label: worktreeName.trim(),
         })
+        void refreshFocusedCheckoutGit()
         return true
       },
     )
@@ -224,6 +239,7 @@ export function AgentSessionsPanel() {
               const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
               if (r.ok) {
                 closeTab(workspaceId, ctx.tabId)
+                void refreshFocusedCheckoutGit()
               }
               return r
             },

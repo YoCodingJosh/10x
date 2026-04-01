@@ -17,6 +17,7 @@ import {
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
+import { refreshFocusedCheckoutGit } from '@/stores/git-focused-checkout-store'
 import { cn } from '@/lib/utils'
 import {
   ArrowDownToLine,
@@ -78,7 +79,10 @@ export function ActivityBarGitMenu() {
         async () => {
           const r = await op()
           if (!r.ok) window.alert(r.error)
-          else await refreshRepoState()
+          else {
+            await refreshRepoState()
+            void refreshFocusedCheckoutGit()
+          }
           return r
         },
       )
@@ -211,7 +215,10 @@ export function ActivityBarGitMenu() {
         open={publishOpen}
         onOpenChange={setPublishOpen}
         gitCwd={gitCwd}
-        onPublished={() => void refreshRepoState()}
+        onPublished={() => {
+          void refreshRepoState()
+          void refreshFocusedCheckoutGit()
+        }}
       />
 
       <Dialog open={commitOpen} onOpenChange={setCommitOpen}>

@@ -1,4 +1,5 @@
 import { ActivityBar } from '@/features/activity-bar/activity-bar'
+import { GitFocusedCheckoutBridge } from '@/features/git/git-focused-checkout-bridge'
 import { StatusBar } from '@/features/status-bar/status-bar'
 
 import { CenterRightSplit } from './center-right-split'
@@ -8,6 +9,7 @@ export function AppShell() {
   return (
     <>
       <WorkspaceSync />
+      <GitFocusedCheckoutBridge />
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
         <div className="flex min-h-0 flex-1">
           <ActivityBar />

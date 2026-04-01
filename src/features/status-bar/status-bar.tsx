@@ -1,5 +1,6 @@
-import { useStatusActivityStore } from '@/stores/status-activity-store'
+import { GitQuickActionButton } from '@/features/git/git-quick-action-button'
 import { StatusDomainIcon } from '@/features/status-bar/status-domain-icon'
+import { useStatusActivityStore } from '@/stores/status-activity-store'
 import { Loader2 } from 'lucide-react'
 
 /**
@@ -16,8 +17,9 @@ export function StatusBar() {
       aria-live="polite"
       aria-label="Background tasks"
     >
+      <GitQuickActionButton />
       {activities.length === 0 ? (
-        <span className="select-none text-muted-foreground/80">Ready</span>
+        <span className="min-w-0 flex-1 select-none text-muted-foreground/80">Ready</span>
       ) : (
         <ul className="flex min-w-0 flex-1 items-center gap-4 overflow-x-auto">
           {activities.map((a) => (
