@@ -20,7 +20,7 @@ export function WorkspaceAgentDesk() {
   const visibleId = visibleWorkspaceId ?? workspaces[0]!.id
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div id="mux-agent-desk" className="relative flex min-h-0 flex-1 flex-col">
       {workspaces.map((ws) => (
         <div
           key={ws.id}

@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 
 import fixPath from 'fix-path'
 import type { IpcMainInvokeEvent } from 'electron'
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 
 const execFileAsync = promisify(execFile)
 
@@ -46,6 +46,88 @@ async function runGit(
 export type GitClassifyResult =
   | { isRepo: false }
   | { isRepo: true; toplevel: string; commonDir: string }
+
+/**
+ * Turn `git remote get-url` output into an https URL for opening in a browser.
+ * Handles https, git@host:path, ssh://, and git:// remotes.
+ */
+function gitRemoteUrlToHttpsUrl(remote: string): string | null {
+  const s = remote.trim()
+  if (!s) return null
+
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const u = new URL(s)
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+      const path = u.pathname.replace(/\.git$/i, '') || '/'
+      return path === '/' ? u.origin : `${u.origin}${path}`
+    } catch {
+      return null
+    }
+  }
+
+  const scp = /^git@([^:]+):(.+)$/i.exec(s)
+  if (scp) {
+    let host = scp[1]!
+    const pathPart = scp[2]!.replace(/\.git$/i, '')
+    if (host === 'ssh.github.com') host = 'github.com'
+    if (host === 'ssh.gitlab.com') host = 'gitlab.com'
+    return `https://${host}/${pathPart}`
+  }
+
+  try {
+    const normalized = s.startsWith('git://') ? `https://${s.slice('git://'.length)}` : s
+    if (!normalized.startsWith('ssh://')) return null
+    const u = new URL(normalized)
+    let host = u.hostname
+    if (host === 'ssh.github.com') host = 'github.com'
+    if (host === 'ssh.gitlab.com') host = 'gitlab.com'
+    const path = u.pathname.replace(/^\//, '').replace(/\.git$/i, '')
+    if (!host || !path) return null
+    return `https://${host}/${path}`
+  } catch {
+    return null
+  }
+}
+
+export type OpenGitOriginResult = { ok: true } | { ok: false; error: string }
+
+export async function openGitOriginInBrowser(cwd: string): Promise<OpenGitOriginResult> {
+  const trimmed = cwd.trim()
+  if (!trimmed) {
+    return { ok: false, error: 'Invalid path.' }
+  }
+  if (!existsSync(trimmed)) {
+    return { ok: false, error: 'Path does not exist.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a git repository.' }
+  }
+  const toplevel = classified.toplevel
+  const remote = await runGit(toplevel, ['remote', 'get-url', 'origin'])
+  if (!remote.ok || !remote.stdout) {
+    return { ok: false, error: 'No remote named origin.' }
+  }
+  const webUrl = gitRemoteUrlToHttpsUrl(remote.stdout)
+  if (!webUrl) {
+    return { ok: false, error: 'Could not turn this remote into a web URL.' }
+  }
+  try {
+    const u = new URL(webUrl)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      return { ok: false, error: 'Unsupported remote URL.' }
+    }
+  } catch {
+    return { ok: false, error: 'Invalid remote URL.' }
+  }
+  try {
+    await shell.openExternal(webUrl)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || 'Failed to open browser.' }
+  }
+}
 
 export async function gitClassify(cwd: string): Promise<GitClassifyResult> {
   const inside = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'])
@@ -254,6 +336,13 @@ export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<Creat
 }
 
 export function registerGitIpc() {
+  ipcMain.handle('git:openOriginInBrowser', async (_e: IpcMainInvokeEvent, cwd: string) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, error: 'Invalid path.' } satisfies OpenGitOriginResult
+    }
+    return openGitOriginInBrowser(cwd.trim())
+  })
+
   ipcMain.handle('git:classify', async (_e: IpcMainInvokeEvent, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd.trim()) {
       return { isRepo: false }

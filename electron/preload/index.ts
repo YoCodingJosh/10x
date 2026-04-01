@@ -26,6 +26,10 @@ type RecoverableWorktree = { path: string; label: string }
 
 type RemoveMuxWorktreeResult = { ok: true } | { ok: false; error: string }
 
+type GitOpenOriginResult = { ok: true } | { ok: false; error: string }
+
+type ShellResult = { ok: true } | { ok: false; error: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -37,7 +41,15 @@ const api = {
     pickWorkspace: (): Promise<string | null> =>
       ipcRenderer.invoke('dialog:pickWorkspace'),
   },
+  shell: {
+    openPathInOsFinder: (fullPath: string): Promise<ShellResult> =>
+      ipcRenderer.invoke('shell:openPathInOsFinder', fullPath),
+    openInCursor: (folderPath: string): Promise<ShellResult> =>
+      ipcRenderer.invoke('shell:openInCursor', folderPath),
+  },
   git: {
+    openOriginInBrowser: (cwd: string): Promise<GitOpenOriginResult> =>
+      ipcRenderer.invoke('git:openOriginInBrowser', cwd),
     classify: (cwd: string): Promise<GitClassifyResult> =>
       ipcRenderer.invoke('git:classify', cwd),
     createWorktree: (args: {

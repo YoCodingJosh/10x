@@ -7,6 +7,7 @@ import Store from 'electron-store'
 
 import { registerGitIpc } from './git-ipc'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
+import { registerShellIpc } from './shell-ipc'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -92,6 +93,7 @@ ipcMain.handle(
 
 registerPtyIpc()
 registerGitIpc()
+registerShellIpc()
 
 ipcMain.handle('dialog:pickWorkspace', async (event) => {
   const parent =

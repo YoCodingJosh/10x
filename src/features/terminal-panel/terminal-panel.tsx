@@ -82,6 +82,7 @@ export function TerminalPanel() {
   if (workspaces.length === 0 || visibleId == null) {
     return (
       <section
+        id="mux-terminal-panel"
         className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
         aria-label="Terminal panel"
       >
@@ -218,6 +219,7 @@ export function TerminalPanel() {
 
   return (
     <section
+      id="mux-terminal-panel"
       className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
       aria-label="Terminal panel"
     >

@@ -12,7 +12,14 @@ declare global {
       dialog: {
         pickWorkspace: () => Promise<string | null>
       }
+      shell: {
+        openPathInOsFinder: (fullPath: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        openInCursor: (folderPath: string) => Promise<{ ok: true } | { ok: false; error: string }>
+      }
       git: {
+        openOriginInBrowser: (
+          cwd: string,
+        ) => Promise<{ ok: true } | { ok: false; error: string }>
         classify: (
           cwd: string,
         ) => Promise<
