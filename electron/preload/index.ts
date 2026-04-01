@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+type WorkspaceEntry = { id: string; path: string; label: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -7,12 +9,10 @@ const api = {
     setWorkspaces: (workspaces: WorkspaceEntry[]): Promise<boolean> =>
       ipcRenderer.invoke('store:set', 'workspaces', workspaces),
   },
+  dialog: {
+    pickWorkspace: (): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:pickWorkspace'),
+  },
 }
 
 contextBridge.exposeInMainWorld('mux', api)
-
-declare global {
-  interface Window {
-    mux: typeof api
-  }
-}

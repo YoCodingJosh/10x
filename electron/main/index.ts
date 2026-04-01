@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
@@ -70,15 +71,34 @@ function createWindow() {
   })
 }
 
-ipcMain.handle('store:get', <K extends keyof MuxStoreSchema>(_, key: K) => store.get(key))
+ipcMain.handle('store:get', <K extends keyof MuxStoreSchema>(_event: IpcMainInvokeEvent, key: K) =>
+  store.get(key),
+)
 
 ipcMain.handle(
   'store:set',
-  <K extends keyof MuxStoreSchema>(_, key: K, value: MuxStoreSchema[K]) => {
+  <K extends keyof MuxStoreSchema>(
+    _event: IpcMainInvokeEvent,
+    key: K,
+    value: MuxStoreSchema[K],
+  ) => {
     store.set(key, value)
     return true
   },
 )
+
+ipcMain.handle('dialog:pickWorkspace', async (event) => {
+  const parent =
+    BrowserWindow.fromWebContents(event.sender) ??
+    mainWindow ??
+    BrowserWindow.getAllWindows()[0]
+  if (!parent) return null
+  const { canceled, filePaths } = await dialog.showOpenDialog(parent, {
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  if (canceled || filePaths.length === 0) return null
+  return filePaths[0]
+})
 
 app.whenReady().then(() => {
   createWindow()

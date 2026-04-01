@@ -9,6 +9,9 @@ declare global {
           workspaces: { id: string; path: string; label: string }[],
         ) => Promise<boolean>
       }
+      dialog: {
+        pickWorkspace: () => Promise<string | null>
+      }
     }
   }
 }
