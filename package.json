@@ -2,6 +2,7 @@
   "name": "10x",
   "version": "0.1.0",
   "license": "MIT",
+  "author": "BrightSideDeveloper",
   "private": true,
   "type": "module",
   "main": "dist-electron/main/index.js",
