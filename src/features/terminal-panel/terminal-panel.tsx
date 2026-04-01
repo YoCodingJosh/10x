@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
@@ -20,6 +20,32 @@ import { globalShellSessionId, worktreeShellSessionId } from './workspace-shell-
 
 type TerminalScope = 'project' | 'agent'
 
+const TERMINAL_SCOPE_STORAGE_KEY = 'mux.terminalScopeByWorkspace'
+
+function readTerminalScopeByWorkspace(): Record<string, TerminalScope> {
+  try {
+    const raw = localStorage.getItem(TERMINAL_SCOPE_STORAGE_KEY)
+    if (raw == null) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const out: Record<string, TerminalScope> = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v === 'project' || v === 'agent') out[k] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function writeTerminalScopeByWorkspace(map: Record<string, TerminalScope>) {
+  try {
+    localStorage.setItem(TERMINAL_SCOPE_STORAGE_KEY, JSON.stringify(map))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function TerminalPanel() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const visibleWorkspaceId = useVisibleWorkspaceId()
@@ -39,16 +65,9 @@ export function TerminalPanel() {
   const setGlobalActiveShell = useGlobalTerminalsStore((s) => s.setActiveShell)
   const reconcileGlobalActiveShell = useGlobalTerminalsStore((s) => s.reconcileActiveShell)
 
-  const [terminalScope, setTerminalScope] = useState<TerminalScope>('project')
-  const prevVisibleWs = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (visibleWorkspaceId == null) return
-    if (prevVisibleWs.current !== null && prevVisibleWs.current !== visibleWorkspaceId) {
-      setTerminalScope('project')
-    }
-    prevVisibleWs.current = visibleWorkspaceId
-  }, [visibleWorkspaceId])
+  const [scopeByWorkspace, setScopeByWorkspace] = useState<
+    Record<string, TerminalScope>
+  >(readTerminalScopeByWorkspace)
 
   const visibleId =
     workspaces.length === 0 ? null : (visibleWorkspaceId ?? workspaces[0]!.id)
@@ -68,6 +87,24 @@ export function TerminalPanel() {
 
   const globalShells = visibleId ? (globalByWorkspaceId[visibleId] ?? []) : []
   const activeGlobalShellId = visibleId ? (globalActiveMap[visibleId] ?? null) : null
+
+  const terminalScope: TerminalScope = visibleId
+    ? (scopeByWorkspace[visibleId] ?? 'project')
+    : 'project'
+
+  function setTerminalScope(next: TerminalScope) {
+    if (!visibleId) return
+    setScopeByWorkspace((prev) => {
+      const merged = { ...prev, [visibleId]: next }
+      writeTerminalScopeByWorkspace(merged)
+      return merged
+    })
+  }
+
+  const hasAnyAgentShell = Object.values(byKey).some((list) => list.length > 0)
+  const hasAnyProjectShell = workspaces.some(
+    (ws) => (globalByWorkspaceId[ws.id]?.length ?? 0) > 0,
+  )
 
   useLayoutEffect(() => {
     if (!visibleId || !activeAgentTabId) return
@@ -99,37 +136,25 @@ export function TerminalPanel() {
   const projectPath = visibleWsRow?.path ?? ''
 
   const agentShellLayer = (
-    <>
-      {!activeAgentTabId || !visibleBucket?.tabs.length ? (
-        <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
-          Open or create an agent tab to use shells in that tab’s folder.
-        </div>
-      ) : agentShells.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
-          <p className="text-xs text-muted-foreground">No shells for this agent yet.</p>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => addShell(visibleId, activeAgentTabId)}
-          >
-            <Plus className="size-3.5" />
-            Add shell
-          </Button>
-        </div>
-      ) : (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Keep hosts mounted whenever any agent shell exists, even if the visible workspace has none (workspace switch). */}
+      {hasAnyAgentShell ? (
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {workspaces.map((ws) => {
             const bucket = byWorkspaceId[ws.id]
             const tabs = bucket?.tabs ?? []
             if (tabs.length === 0) return null
+            const isWsVisible = ws.id === visibleId
             return (
               <div
                 key={ws.id}
                 className={cn(
-                  'flex min-h-0 min-w-0 flex-1 flex-col',
-                  ws.id !== visibleId && 'hidden',
+                  'flex min-h-0 min-w-0 flex-col',
+                  isWsVisible
+                    ? 'relative z-10 min-h-0 flex-1'
+                    : 'pointer-events-none invisible absolute inset-0 z-0 min-h-0',
                 )}
+                aria-hidden={!isWsVisible}
               >
                 {tabs.flatMap((tab) => {
                   const shells = byKey[worktreeTerminalsKey(ws.id, tab.id)] ?? []
@@ -143,9 +168,12 @@ export function TerminalPanel() {
                       <div
                         key={sh.id}
                         className={cn(
-                          'flex min-h-0 min-w-0 flex-1 flex-col',
-                          !isVisibleLayer && 'hidden',
+                          'flex min-h-0 min-w-0 flex-col',
+                          isVisibleLayer
+                            ? 'relative z-10 min-h-0 flex-1'
+                            : 'pointer-events-none invisible absolute inset-0 z-0 min-h-0',
                         )}
+                        aria-hidden={!isVisibleLayer}
                       >
                         <ShellTerminal
                           sessionId={worktreeShellSessionId(ws.id, tab.id, sh.id)}
@@ -159,38 +187,48 @@ export function TerminalPanel() {
             )
           })}
         </div>
-      )}
-    </>
-  )
+      ) : null}
 
-  const projectShellLayer = (
-    <>
-      {globalShells.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
-          <p className="text-xs text-muted-foreground">No project shells yet.</p>
+      {!activeAgentTabId || !visibleBucket?.tabs.length ? (
+        <div className="absolute inset-0 z-20 flex flex-1 items-center justify-center bg-card/95 p-4 text-center text-xs text-muted-foreground">
+          Open or create an agent tab to use shells in that tab’s folder.
+        </div>
+      ) : agentShells.length === 0 ? (
+        <div className="absolute inset-0 z-20 flex flex-1 flex-col items-center justify-center gap-2 bg-card/95 p-4 text-center">
+          <p className="text-xs text-muted-foreground">No shells for this agent yet.</p>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => addGlobalShell(visibleId)}
+            onClick={() => addShell(visibleId, activeAgentTabId!)}
           >
             <Plus className="size-3.5" />
             Add shell
           </Button>
         </div>
-      ) : (
+      ) : null}
+    </div>
+  )
+
+  const projectShellLayer = (
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {hasAnyProjectShell ? (
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {workspaces.map((ws) => {
             const shells = globalByWorkspaceId[ws.id] ?? []
             if (shells.length === 0) return null
             const activeG = globalActiveMap[ws.id] ?? null
+            const isWsVisible = ws.id === visibleId
             return (
               <div
                 key={ws.id}
                 className={cn(
-                  'flex min-h-0 min-w-0 flex-1 flex-col',
-                  ws.id !== visibleId && 'hidden',
+                  'flex min-h-0 min-w-0 flex-col',
+                  isWsVisible
+                    ? 'relative z-10 min-h-0 flex-1'
+                    : 'pointer-events-none invisible absolute inset-0 z-0 min-h-0',
                 )}
+                aria-hidden={!isWsVisible}
               >
                 {shells.map((sh) => {
                   const isVisibleLayer = ws.id === visibleId && sh.id === activeG
@@ -198,9 +236,12 @@ export function TerminalPanel() {
                     <div
                       key={sh.id}
                       className={cn(
-                        'flex min-h-0 min-w-0 flex-1 flex-col',
-                        !isVisibleLayer && 'hidden',
+                        'flex min-h-0 min-w-0 flex-col',
+                        isVisibleLayer
+                          ? 'relative z-10 min-h-0 flex-1'
+                          : 'pointer-events-none invisible absolute inset-0 z-0 min-h-0',
                       )}
+                      aria-hidden={!isVisibleLayer}
                     >
                       <ShellTerminal
                         sessionId={globalShellSessionId(ws.id, sh.id)}
@@ -213,8 +254,26 @@ export function TerminalPanel() {
             )
           })}
         </div>
-      )}
-    </>
+      ) : null}
+
+      {!hasAnyProjectShell ? (
+        <div className="absolute inset-0 z-20 flex flex-1 flex-col items-center justify-center gap-2 bg-card/95 p-4 text-center">
+          <p className="text-xs text-muted-foreground">No project shells yet.</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => addGlobalShell(visibleId)}>
+            <Plus className="size-3.5" />
+            Add shell
+          </Button>
+        </div>
+      ) : globalShells.length === 0 ? (
+        <div className="absolute inset-0 z-20 flex flex-1 flex-col items-center justify-center gap-2 bg-card/95 p-4 text-center">
+          <p className="text-xs text-muted-foreground">No project shells for this workspace yet.</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => addGlobalShell(visibleId)}>
+            <Plus className="size-3.5" />
+            Add shell
+          </Button>
+        </div>
+      ) : null}
+    </div>
   )
 
   return (
