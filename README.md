@@ -5,9 +5,43 @@
 ## Features
 
 - **Workspaces** — Add several folders; switch between them from the sidebar.
-- **Agent sessions** — Multiple Claude Code tabs per workspace; Git repos can use dedicated worktrees under `~/10x-worktrees`.
+- **Agent sessions** — Multiple Claude Code tabs per workspace; Git repos can use dedicated worktrees (see [Git and worktrees](#git-and-worktrees)).
 - **Terminal** — Project-scoped and agent-scoped shells; sessions stay alive when you switch workspaces.
+- **Git status & quick action** — One primary control follows the **focused checkout** (main workspace folder or the active agent worktree): pull / stage / commit / push, publish when there is no `origin`, plus GitHub-driven **Create PR** and post-merge **Delete branch** cleanup when connected.
 - **Quick actions** — Open the active folder in Cursor, in the file manager, or open the `origin` remote in your browser (when available).
+
+## Git and worktrees
+
+10x can run agents in your **workspace directory** or in a **separate Git worktree** so each agent tab has its own checkout and branch without disturbing the rest of the repo.
+
+### Layout on disk
+
+- Worktrees live under **`~/10x-worktrees/<repo-slug>/<worktree-slug>/`**, where the repo slug is derived from the repository’s top-level folder name.
+- Each new worktree gets a local branch named **`10x/<slug>`**, matching the worktree name you choose (if that name is already taken locally, a numeric suffix is appended: `10x/<slug>-1`, etc.).
+
+### Creating and closing agents
+
+- In the agent panel, adding an agent with a **worktree** runs `git worktree add` from the main repo and opens Claude in that path. You can still add “plain” agents that use the workspace folder directly.
+- Closing a tab that used a worktree asks for confirmation; cleanup removes the worktree (and tries to delete the linked local branch as part of Git’s worktree removal flow where applicable).
+
+### Session recovery
+
+- After a restart, 10x scans `~/10x-worktrees` for worktrees that belong to your open Git workspaces so you can **re-open agent tabs** that point at those paths instead of losing track of them.
+
+### Status bar workflow
+
+The **Git quick action** reflects the repo that matches what you’re looking at:
+
+- **Behind upstream** → pull first.
+- **Unstaged or untracked files** → stage (`git add -A` style).
+- **Staged changes** → commit (message dialog).
+- **Ahead of upstream** (or no upstream yet while `origin` exists) → push.
+- **No `origin`** → publish flow (remote / GitHub) when you hook the repo up.
+- With **GitHub** connected (see [GitHub (Settings)](#github-settings)): after a successful push you may get **Create PR** (compare URL in the browser). If the PR for that branch is already **merged**, the app can offer **Delete branch**, which deletes the remote branch and removes the local worktree.
+
+Terminal scope, “open in Cursor,” and the activity-bar Git menu use the same **current path** idea as this control (workspace root vs active agent worktree).
+
+Implementation detail: Git commands and IPC live in [`electron/main/git-ipc.ts`](electron/main/git-ipc.ts).
 
 ## Requirements
 
