@@ -26,6 +26,10 @@ declare global {
           | { ok: true; worktreePath: string; branch: string }
           | { ok: false; error: string }
         >
+        listRecoverableMuxWorktrees: (repoCwd: string) => Promise<{ path: string; label: string }[]>
+        removeMuxWorktree: (
+          worktreePath: string,
+        ) => Promise<{ ok: true } | { ok: false; error: string }>
       }
       pty: {
         create: (opts: {

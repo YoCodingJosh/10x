@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
 import type { AgentTab } from '@/stores/agent-tabs-store'
@@ -30,6 +31,11 @@ export function AgentSessionsPanel() {
   const [worktreeOpen, setWorktreeOpen] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [worktreeDialogFirst, setWorktreeDialogFirst] = useState(true)
+  const [closeWorktreeConfirm, setCloseWorktreeConfirm] = useState<{
+    tabId: string
+    agentPath: string
+    label: string
+  } | null>(null)
 
   const [repoKind, setRepoKind] = useState<'loading' | 'git' | 'plain'>('loading')
 
@@ -88,6 +94,18 @@ export function AgentSessionsPanel() {
       setActiveTab(workspaceId, resolvedTabId)
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
+
+  function requestCloseTab(tab: AgentTab) {
+    if (!tab.agentPath) {
+      closeTab(workspaceId, tab.id)
+      return
+    }
+    setCloseWorktreeConfirm({
+      tabId: tab.id,
+      agentPath: tab.agentPath,
+      label: tab.label,
+    })
+  }
 
   async function confirmWorktree(worktreeName: string): Promise<boolean> {
     if (!workspace?.path) return false
@@ -151,6 +169,23 @@ export function AgentSessionsPanel() {
 
   return (
     <>
+      <CloseAgentWorktreeDialog
+        open={closeWorktreeConfirm !== null}
+        onOpenChange={(o) => {
+          if (!o) setCloseWorktreeConfirm(null)
+        }}
+        agentLabel={closeWorktreeConfirm?.label ?? ''}
+        worktreePath={closeWorktreeConfirm?.agentPath ?? ''}
+        onConfirmRemove={async () => {
+          const ctx = closeWorktreeConfirm
+          if (!ctx) return { ok: false as const, error: 'Nothing to close.' }
+          const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
+          if (r.ok) {
+            closeTab(workspaceId, ctx.tabId)
+          }
+          return r
+        }}
+      />
       <WorktreeNameDialog
         open={worktreeOpen}
         onOpenChange={setWorktreeOpen}
@@ -198,7 +233,7 @@ export function AgentSessionsPanel() {
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        closeTab(workspaceId, tab.id)
+                        requestCloseTab(tab)
                       }}
                     >
                       <X className="size-3" />

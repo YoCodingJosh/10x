@@ -40,27 +40,12 @@ export function TerminalPanel() {
     prevVisibleWs.current = visibleWorkspaceId
   }, [visibleWorkspaceId])
 
-  if (workspaces.length === 0) {
-    return (
-      <section
-        className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
-        aria-label="Terminal panel"
-      >
-        <div className="flex h-8 shrink-0 items-center border-b border-border px-2 text-xs text-muted-foreground">
-          Terminal
-        </div>
-        <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          Add a workspace to get a shell in its project folder.
-        </div>
-      </section>
-    )
-  }
-
-  const visibleId = visibleWorkspaceId ?? workspaces[0]!.id
-  const visibleBucket = byWorkspaceId[visibleId]
+  const visibleId =
+    workspaces.length === 0 ? null : (visibleWorkspaceId ?? workspaces[0]!.id)
+  const visibleBucket = visibleId ? byWorkspaceId[visibleId] : undefined
   const activeAgentTabId = visibleBucket?.activeTabId ?? null
   const activeAgentTab = visibleBucket?.tabs.find((t) => t.id === activeAgentTabId) ?? null
-  const visibleWsRow = workspaces.find((w) => w.id === visibleId)
+  const visibleWsRow = visibleId ? workspaces.find((w) => w.id === visibleId) : undefined
   const agentCwd =
     activeAgentTab && visibleWsRow
       ? (activeAgentTab.agentPath ?? visibleWsRow.path)
@@ -75,6 +60,22 @@ export function TerminalPanel() {
     if (!visibleId || !activeAgentTabId) return
     reconcileActiveShell(visibleId, activeAgentTabId)
   }, [visibleId, activeAgentTabId, agentShells, reconcileActiveShell])
+
+  if (workspaces.length === 0 || visibleId == null) {
+    return (
+      <section
+        className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-border bg-card"
+        aria-label="Terminal panel"
+      >
+        <div className="flex h-8 shrink-0 items-center border-b border-border px-2 text-xs text-muted-foreground">
+          Terminal
+        </div>
+        <div className="flex flex-1 items-center justify-center p-4 text-center text-sm text-muted-foreground">
+          Add a workspace to get a shell in its project folder.
+        </div>
+      </section>
+    )
+  }
 
   const agentShellLayer = (
     <>

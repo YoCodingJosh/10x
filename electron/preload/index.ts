@@ -22,6 +22,10 @@ type CreateWorktreeResult =
   | { ok: true; worktreePath: string; branch: string }
   | { ok: false; error: string }
 
+type RecoverableWorktree = { path: string; label: string }
+
+type RemoveMuxWorktreeResult = { ok: true } | { ok: false; error: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -40,6 +44,10 @@ const api = {
       repoCwd: string
       worktreeName: string
     }): Promise<CreateWorktreeResult> => ipcRenderer.invoke('git:createWorktree', args),
+    listRecoverableMuxWorktrees: (repoCwd: string): Promise<RecoverableWorktree[]> =>
+      ipcRenderer.invoke('git:listRecoverableMuxWorktrees', repoCwd),
+    removeMuxWorktree: (worktreePath: string): Promise<RemoveMuxWorktreeResult> =>
+      ipcRenderer.invoke('git:removeMuxWorktree', worktreePath),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>
