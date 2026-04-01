@@ -18,7 +18,15 @@ import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-vis
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { cn } from '@/lib/utils'
-import { GitBranch } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  GitBranch,
+  GitBranchPlus,
+  GitCommitHorizontal,
+  Github,
+  PlusSquare,
+} from 'lucide-react'
 
 export function ActivityBarGitMenu() {
   const gitCwd = useGitCwdForVisibleWorkspace()
@@ -120,26 +128,31 @@ export function ActivityBarGitMenu() {
           {!gitCwd ? null : isRepo === false ? (
             <DropdownMenuItem
               disabled={busy}
+              className="gap-2"
               onSelect={(e) => {
                 e.preventDefault()
                 void runGitOp('Initializing repository', () => window.mux.git.init(gitCwd))
               }}
             >
+              <GitBranchPlus className="size-3.5 shrink-0 opacity-70" aria-hidden />
               Initialize Git repository
             </DropdownMenuItem>
           ) : isRepo && hasOrigin != null ? (
             <>
               <DropdownMenuItem
                 disabled={busy}
+                className="gap-2"
                 onSelect={(e) => {
                   e.preventDefault()
                   void runGitOp('Staging changes', () => window.mux.git.addAll(gitCwd))
                 }}
               >
+                <PlusSquare className="size-3.5 shrink-0 opacity-70" aria-hidden />
                 Stage all changes
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={busy}
+                className="gap-2"
                 onSelect={(e) => {
                   e.preventDefault()
                   setMenuOpen(false)
@@ -147,38 +160,45 @@ export function ActivityBarGitMenu() {
                   setCommitOpen(true)
                 }}
               >
+                <GitCommitHorizontal className="size-3.5 shrink-0 opacity-70" aria-hidden />
                 Commit…
               </DropdownMenuItem>
               {hasOrigin ? (
                 <>
                   <DropdownMenuItem
                     disabled={busy}
+                    className="gap-2"
                     onSelect={(e) => {
                       e.preventDefault()
                       void runGitOp('Pulling from upstream', () => window.mux.git.pull(gitCwd))
                     }}
                   >
+                    <ArrowDownToLine className="size-3.5 shrink-0 opacity-70" aria-hidden />
                     Pull
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={busy}
+                    className="gap-2"
                     onSelect={(e) => {
                       e.preventDefault()
                       void runGitOp('Pushing to origin', () => window.mux.git.push(gitCwd))
                     }}
                   >
+                    <ArrowUpFromLine className="size-3.5 shrink-0 opacity-70" aria-hidden />
                     Push
                   </DropdownMenuItem>
                 </>
               ) : (
                 <DropdownMenuItem
                   disabled={busy}
+                  className="gap-2"
                   onSelect={(e) => {
                     e.preventDefault()
                     setMenuOpen(false)
                     setPublishOpen(true)
                   }}
                 >
+                  <Github className="size-3.5 shrink-0 opacity-70" aria-hidden />
                   Publish to GitHub…
                 </DropdownMenuItem>
               )}

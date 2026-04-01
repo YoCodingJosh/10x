@@ -251,19 +251,19 @@ export function AgentSessionsPanel() {
           onValueChange={(v) => setActiveTab(workspaceId, v)}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
-          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-muted/30 px-2">
+          <div className="flex h-9 min-h-9 max-h-9 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/30 px-2">
             <TabsList
               variant="line"
-              className="h-8 min-w-0 flex-1 flex-nowrap justify-start overflow-x-auto rounded-none bg-transparent p-0"
+              className="h-8 max-h-8 min-h-8 min-w-0 flex-1 flex-nowrap items-center justify-start overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0"
             >
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
                   asChild
-                  className="h-8 max-w-44 shrink-0 rounded-md border border-transparent bg-transparent p-0 text-xs shadow-none data-[state=active]:border-border data-[state=active]:bg-background"
+                  className="h-8 max-h-8 flex-none shrink-0 rounded-md border border-transparent bg-transparent p-0 text-xs shadow-none data-[state=active]:border-border data-[state=active]:bg-background"
                 >
-                  <div className="flex h-full min-w-0 items-stretch">
+                  <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
                     <span className="flex min-w-0 flex-1 items-center px-2">
                       <EditableAgentTabLabel tabId={tab.id} />
                     </span>
