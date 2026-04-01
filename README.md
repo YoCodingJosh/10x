@@ -48,4 +48,4 @@ To share builds, upload the DMG to **GitHub Releases** (or another host) and lin
 
 ## License
 
-Private / unlicensed unless you add a `LICENSE` file.
+[MIT](LICENSE)
