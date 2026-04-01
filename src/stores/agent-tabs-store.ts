@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
-import { scheduleFocusVisibleMuxXterm } from '@/lib/focus-mux-xterm'
+import { scheduleFocusMuxXtermForTyping } from '@/lib/focus-mux-xterm'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useTerminalScopeStore } from '@/stores/terminal-scope-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
@@ -111,7 +111,7 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
 
     // Skip when restoring worktree tabs in the background so we don’t steal focus on startup.
     if (!opts?.skipAgentFocus) {
-      scheduleFocusVisibleMuxXterm('#mux-agent-desk')
+      scheduleFocusMuxXtermForTyping('#mux-agent-desk')
     }
   },
 
@@ -141,7 +141,7 @@ export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
       },
     }))
 
-    scheduleFocusVisibleMuxXterm('#mux-agent-desk')
+    scheduleFocusMuxXtermForTyping('#mux-agent-desk')
   },
 
   closeTabByAgentPath: (workspaceId, agentPath) => {

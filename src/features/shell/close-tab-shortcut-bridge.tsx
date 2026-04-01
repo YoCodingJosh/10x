@@ -4,7 +4,7 @@ import { useAgentTabCloseIntentStore } from '@/stores/agent-tab-close-intent-sto
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useWorktreeTerminalsStore, worktreeTerminalsKey } from '@/stores/worktree-terminals-store'
-import { scheduleFocusVisibleMuxXterm } from '@/lib/focus-mux-xterm'
+import { scheduleFocusMuxXtermForTyping } from '@/lib/focus-mux-xterm'
 
 import {
   getVisibleWorkspaceId,
@@ -49,7 +49,7 @@ export function CloseTabShortcutBridge() {
           const active = g.activeShellId[visibleId] ?? null
           if (shells.length > 0 && active) {
             g.removeShell(visibleId, active)
-            scheduleFocusVisibleMuxXterm('#mux-terminal-panel')
+            scheduleFocusMuxXtermForTyping('#mux-terminal-panel')
           }
           return
         }
@@ -64,7 +64,7 @@ export function CloseTabShortcutBridge() {
         const active = wt.activeShellId[key] ?? null
         if (shells.length > 0 && active) {
           wt.removeShell(visibleId, agentTabId, active)
-          scheduleFocusVisibleMuxXterm('#mux-terminal-panel')
+          scheduleFocusMuxXtermForTyping('#mux-terminal-panel')
         }
         return
       }

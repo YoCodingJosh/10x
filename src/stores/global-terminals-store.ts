@@ -10,8 +10,6 @@ type State = {
   renameShell: (workspaceId: string, shellId: string, label: string) => void
   setActiveShell: (workspaceId: string, shellId: string | null) => void
   reconcileActiveShell: (workspaceId: string) => void
-  /** Ensures at least one project shell per workspace (initial load). */
-  ensureDefaultShells: (workspaceId: string) => void
   pruneToWorkspaces: (validWorkspaceIds: Set<string>) => void
   purgeWorkspace: (workspaceId: string) => void
 }
@@ -88,12 +86,6 @@ export const useGlobalTerminalsStore = create<State>((set, get) => ({
         [workspaceId]: list[0]!.id,
       },
     }))
-  },
-
-  ensureDefaultShells: (workspaceId) => {
-    const list = get().byWorkspaceId[workspaceId]
-    if (list && list.length > 0) return
-    get().addShell(workspaceId)
   },
 
   pruneToWorkspaces: (validWorkspaceIds) => {
