@@ -3,6 +3,10 @@ import {
   usePersistWorkspacesMutation,
   useWorkspacesQuery,
 } from '@/features/workspaces/hooks/use-workspaces'
+import {
+  useAgentNotificationStore,
+  workspaceNeedsAttention,
+} from '@/stores/agent-notification-store'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -14,6 +18,7 @@ export function WorkspacesRailList() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const setActiveWorkspaceId = useWorkspaceStore((s) => s.setActiveWorkspaceId)
   const persist = usePersistWorkspacesMutation()
+  const attention = useAgentNotificationStore((s) => s.attention)
 
   async function removeWorkspace(id: string) {
     const next = workspaces.filter((w) => w.id !== id)
@@ -53,7 +58,10 @@ export function WorkspacesRailList() {
               onClick={() => setActiveWorkspaceId(w.id)}
             >
               <FolderOpen className="size-3.5 shrink-0 opacity-70" />
-              <span className="truncate">{w.label}</span>
+              <span className="min-w-0 flex-1 truncate">{w.label}</span>
+              {workspaceNeedsAttention(w.id, attention) && (
+                <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+              )}
             </button>
             <Button
               type="button"

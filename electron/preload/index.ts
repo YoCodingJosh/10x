@@ -8,6 +8,7 @@ type PtyCreateOpts = {
   cols: number
   rows: number
   kind?: 'claude' | 'shell'
+  label?: string
 }
 
 type PtyCreateResult =
@@ -155,6 +156,18 @@ const api = {
     openDeviceHelp: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:openDeviceHelp'),
     getCreatePrContext: (cwd: string): Promise<GithubCreatePrContext> =>
       ipcRenderer.invoke('github:getCreatePrContext', cwd),
+  },
+  agent: {
+    onStateChange: (
+      handler: (payload: { sessionId: string; state: string }) => void,
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { sessionId: string; state: string },
+      ) => handler(payload)
+      ipcRenderer.on('agent:state-change', listener)
+      return () => ipcRenderer.removeListener('agent:state-change', listener)
+    },
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>
