@@ -18,6 +18,10 @@ import { useAgentTabCloseIntentStore } from '@/stores/agent-tab-close-intent-sto
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
+import {
+  tabNeedsAttention,
+  useAgentNotificationStore,
+} from '@/stores/agent-notification-store'
 import { cn } from '@/lib/utils'
 import { GitBranchPlus, Plus, X } from 'lucide-react'
 
@@ -50,6 +54,9 @@ export function AgentSessionsPanel() {
 
   const closeIntent = useAgentTabCloseIntentStore((s) => s.intent)
   const clearCloseIntent = useAgentTabCloseIntentStore((s) => s.clearIntent)
+
+  const attention = useAgentNotificationStore((s) => s.attention)
+  const clearAttention = useAgentNotificationStore((s) => s._clearAttention)
 
   const [worktreeOpen, setWorktreeOpen] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -150,6 +157,12 @@ export function AgentSessionsPanel() {
       setActiveTab(workspaceId, resolvedTabId)
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
+
+  // Clear attention dot when the user is looking at a tab
+  useEffect(() => {
+    if (!isVisiblePanel || resolvedTabId == null) return
+    clearAttention(`${workspaceId}:${resolvedTabId}`)
+  }, [isVisiblePanel, workspaceId, resolvedTabId, clearAttention])
 
   function requestCloseTab(tab: AgentTab) {
     if (!tab.agentPath) {
@@ -322,7 +335,10 @@ export function AgentSessionsPanel() {
                   className="h-8 max-h-8 flex-none shrink-0 rounded-md border border-transparent bg-transparent p-0 text-xs shadow-none data-[state=active]:border-border data-[state=active]:bg-background"
                 >
                   <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
-                    <span className="flex min-w-0 flex-1 items-center px-2">
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
+                      {tabNeedsAttention(workspaceId, tab.id, attention) && (
+                        <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+                      )}
                       <EditableAgentTabLabel tabId={tab.id} />
                     </span>
                     <Button

@@ -9,6 +9,13 @@ import type { IPty } from 'node-pty'
 
 import fixPath from 'fix-path'
 
+import {
+  cleanupAgentSession,
+  onAgentInput,
+  onAgentOutput,
+  registerAgentSession,
+} from './notification-manager'
+
 const require = createRequire(import.meta.url)
 const pty = require('node-pty') as typeof import('node-pty')
 
@@ -210,6 +217,8 @@ export type PtyCreateOpts = {
   rows: number
   /** @default 'claude' */
   kind?: 'claude' | 'shell'
+  /** Human-readable label shown in macOS notifications */
+  label?: string
 }
 
 export function registerPtyIpc() {
@@ -237,12 +246,18 @@ export function registerPtyIpc() {
       const proc =
         kind === 'shell' ? spawnShellPty(cwd, cols, rows, env) : spawnClaudePty(cwd, cols, rows, env)
 
+      if (kind !== 'shell') {
+        registerAgentSession(sessionId, opts.label ?? sessionId)
+      }
+
       proc.onData((data) => {
         broadcast('pty:data', { sessionId, data })
+        if (kind !== 'shell') onAgentOutput(sessionId, data)
       })
 
       proc.onExit(({ exitCode, signal }) => {
         sessions.delete(sessionId)
+        if (kind !== 'shell') cleanupAgentSession(sessionId)
         broadcast('pty:exit', { sessionId, exitCode, signal })
       })
 
@@ -261,6 +276,7 @@ export function registerPtyIpc() {
   ipcMain.on('pty:write', (_event, sessionId: unknown, data: unknown) => {
     if (typeof sessionId !== 'string' || typeof data !== 'string') return
     sessions.get(sessionId)?.write(data)
+    onAgentInput(sessionId)
   })
 
   ipcMain.on('pty:resize', (_event, sessionId: unknown, cols: unknown, rows: unknown) => {

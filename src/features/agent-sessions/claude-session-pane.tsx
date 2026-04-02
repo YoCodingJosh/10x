@@ -25,10 +25,12 @@ function ClaudeAgentTerminal({
   workspaceId,
   tabId,
   cwd,
+  label,
 }: {
   workspaceId: string
   tabId: string
   cwd: string
+  label: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
@@ -85,6 +87,7 @@ function ClaudeAgentTerminal({
         cols,
         rows,
         kind: 'claude',
+        label,
       })
 
       if (cancelled || tearingDownRef.current) {
@@ -132,7 +135,7 @@ function ClaudeAgentTerminal({
       term.dispose()
       container.replaceChildren()
     }
-  }, [workspaceId, tabId, cwd])
+  }, [workspaceId, tabId, cwd, label])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -179,6 +182,7 @@ export function ClaudeSessionPane() {
           workspaceId={workspaceId}
           tabId={tabId}
           cwd={tab?.agentPath ?? workspace.path}
+          label={`${tab?.label ?? 'Agent'} · ${workspace.label}`}
         />
       )}
     </div>
