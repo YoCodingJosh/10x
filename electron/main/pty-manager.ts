@@ -18,24 +18,53 @@ const pathSep = process.platform === 'win32' ? ';' : ':'
 
 let cachedPtyEnv: Record<string, string> | null = null
 
+type PosixShellKind = 'fish' | 'zsh' | 'bash' | 'sh'
+
+type PosixShell = {
+  path: string
+  kind: PosixShellKind
+}
+
 function defaultPosixSearchPath(): string {
   return process.platform === 'darwin'
     ? '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin'
     : '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 }
 
-function preferredPosixShell(): string | null {
+function classifyPosixShell(shellPath: string): PosixShellKind | null {
+  const shellName = path.basename(shellPath).toLowerCase()
+  if (shellName === 'fish') return 'fish'
+  if (shellName === 'zsh') return 'zsh'
+  if (shellName === 'bash') return 'bash'
+  if (shellName === 'sh' || shellName === 'dash') return 'sh'
+  return null
+}
+
+// TODO: Make the preferred shell configurable in app settings instead of only deriving it from SHELL and hard-coded fallbacks.
+function preferredPosixShell(options?: { includeBasicSh?: boolean }): PosixShell | null {
   const candidates = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh']
   for (const candidate of candidates) {
     if (candidate && existsSync(candidate)) {
-      return candidate
+      const kind = classifyPosixShell(candidate)
+      if (!kind) continue
+      if (kind === 'sh' && !options?.includeBasicSh) continue
+      return { path: candidate, kind }
     }
   }
   return null
 }
 
-function shellCommandArgs(shell: string, command: string): string[] {
-  return shell.includes('fish') ? ['-lic', command] : ['-ilc', command]
+function shellCommandArgs(shell: PosixShell, command: string): string[] {
+  if (shell.kind === 'fish') return ['-lic', command]
+  if (shell.kind === 'zsh' || shell.kind === 'bash') return ['-ilc', command]
+  return ['-c', command]
+}
+
+function interactiveShellArgs(shell: PosixShell): string[] {
+  if (shell.kind === 'fish' || shell.kind === 'zsh' || shell.kind === 'bash') {
+    return ['-l']
+  }
+  return []
 }
 
 function mergePath(a: string, b: string): string {
@@ -81,15 +110,15 @@ function loginShellPathFallback(): string {
   if (process.platform === 'win32') {
     return process.env.Path ?? process.env.PATH ?? ''
   }
-  const shell = preferredPosixShell()
+  const shell = preferredPosixShell({ includeBasicSh: true })
   if (!shell) {
     return process.env.PATH ?? ''
   }
   try {
-    return execFileSync(shell, ['-lc', 'printenv PATH'], {
+    return execFileSync(shell.path, shellCommandArgs(shell, 'printenv PATH'), {
       encoding: 'utf8',
       timeout: 12_000,
-      env: coerceStringEnv({ ...process.env, TERM: 'dumb', HOME: os.homedir(), SHELL: shell }),
+      env: coerceStringEnv({ ...process.env, TERM: 'dumb', HOME: os.homedir(), SHELL: shell.path }),
     }).trim()
   } catch {
     return process.env.PATH ?? ''
@@ -112,11 +141,11 @@ function captureTerminalLikeEnv(): Record<string, string> {
   const shell = preferredPosixShell()
   if (shell) {
     try {
-      const out = execFileSync(shell, shellCommandArgs(shell, 'printenv'), {
+      const out = execFileSync(shell.path, shellCommandArgs(shell, 'printenv'), {
         encoding: 'utf8',
         timeout: 25_000,
         maxBuffer: 10 * 1024 * 1024,
-        env: minimalEnvForShellProbe(shell),
+        env: minimalEnvForShellProbe(shell.path),
       })
       const parsed = parsePrintenv(out)
       if (!parsed.PATH?.trim()) {
@@ -168,13 +197,18 @@ function spawnClaudePty(cwd: string, cols: number, rows: number, env: Record<str
   }
 
   const shell =
-    (env.SHELL && existsSync(env.SHELL) ? env.SHELL : null) ?? preferredPosixShell()
+    (env.SHELL && existsSync(env.SHELL)
+      ? (() => {
+          const kind = classifyPosixShell(env.SHELL)
+          return kind ? { path: env.SHELL, kind } : null
+        })()
+      : null) ?? preferredPosixShell({ includeBasicSh: true })
 
   if (!shell) {
     throw new Error('No usable shell found for Claude sessions')
   }
 
-  return pty.spawn(shell, shellCommandArgs(shell, 'exec claude'), options)
+  return pty.spawn(shell.path, shellCommandArgs(shell, 'exec claude'), options)
 }
 
 /** Interactive login shell — absolute binaries only (avoids spawnp lookup issues). */
@@ -196,20 +230,21 @@ function spawnShellPty(cwd: string, cols: number, rows: number, env: Record<stri
     return pty.spawn(cmd, [], options)
   }
 
-  const shell = env.SHELL
-  if (shell && existsSync(shell)) {
-    if (shell.includes('fish')) {
-      return pty.spawn(shell, ['-l'], options)
-    }
-    if (shell.includes('zsh') || shell.includes('bash') || shell.endsWith('/sh')) {
-      return pty.spawn(shell, ['-l'], options)
-    }
+  const shell =
+    env.SHELL && existsSync(env.SHELL)
+      ? (() => {
+          const kind = classifyPosixShell(env.SHELL)
+          return kind ? { path: env.SHELL, kind } : null
+        })()
+      : null
+  if (shell) {
+    return pty.spawn(shell.path, interactiveShellArgs(shell), options)
   }
-  const fallbackShell = preferredPosixShell()
+  const fallbackShell = preferredPosixShell({ includeBasicSh: true })
   if (fallbackShell) {
-    return pty.spawn(fallbackShell, ['-l'], options)
+    return pty.spawn(fallbackShell.path, interactiveShellArgs(fallbackShell), options)
   }
-  throw new Error('No usable shell found (expected zsh, bash, or sh)')
+  throw new Error('No usable shell found (expected fish, zsh, bash, or sh)')
 }
 
 function broadcast(channel: string, ...args: unknown[]) {
