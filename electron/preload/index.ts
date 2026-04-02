@@ -168,6 +168,8 @@ const api = {
       ipcRenderer.on('agent:state-change', listener)
       return () => ipcRenderer.removeListener('agent:state-change', listener)
     },
+    dismissAttention: (sessionId: string): void =>
+      ipcRenderer.send('agent:dismiss-attention', sessionId),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>

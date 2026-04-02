@@ -93,6 +93,8 @@ declare global {
       }
       agent: {
         onStateChange: (handler: (payload: { sessionId: string; state: string }) => void) => () => void
+        /** Tell the main process the user focused this agent tab (keeps dock badge in sync with blue dots). */
+        dismissAttention: (sessionId: string) => void
       }
       pty: {
         create: (opts: {

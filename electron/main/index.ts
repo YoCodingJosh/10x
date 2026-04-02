@@ -6,6 +6,7 @@ import os from 'node:os'
 import Store from 'electron-store'
 
 import { registerGithubIpc } from './github-ipc'
+import { registerAgentAttentionIpc } from './notification-manager'
 import { registerGitIpc } from './git-ipc'
 import { loadEnvFromAppRoot } from './load-env'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
@@ -95,6 +96,7 @@ ipcMain.handle(
 )
 
 registerPtyIpc()
+registerAgentAttentionIpc()
 registerGitIpc()
 registerGithubIpc()
 registerShellIpc()

@@ -158,10 +158,12 @@ export function AgentSessionsPanel() {
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
 
-  // Clear attention dot when the user is looking at a tab
+  // Clear attention dot when the user is looking at a tab; keep dock badge in sync with main process
   useEffect(() => {
     if (!isVisiblePanel || resolvedTabId == null) return
-    clearAttention(`${workspaceId}:${resolvedTabId}`)
+    const sid = `${workspaceId}:${resolvedTabId}`
+    clearAttention(sid)
+    window.mux.agent.dismissAttention(sid)
   }, [isVisiblePanel, workspaceId, resolvedTabId, clearAttention])
 
   function requestCloseTab(tab: AgentTab) {
