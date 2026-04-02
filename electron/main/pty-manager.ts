@@ -18,21 +18,40 @@ const pathSep = process.platform === 'win32' ? ';' : ':'
 
 let cachedPtyEnv: Record<string, string> | null = null
 
+function defaultPosixSearchPath(): string {
+  return process.platform === 'darwin'
+    ? '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin'
+    : '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+}
+
+function preferredPosixShell(): string | null {
+  const candidates = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh']
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return null
+}
+
+function shellCommandArgs(shell: string, command: string): string[] {
+  return shell.includes('fish') ? ['-lic', command] : ['-ilc', command]
+}
+
 function mergePath(a: string, b: string): string {
   return [...new Set([...a.split(pathSep), ...b.split(pathSep)].filter(Boolean))].join(pathSep)
 }
 
-/** Only what zsh needs to find your home + run `printenv`. Not Electron's stripped GUI env. */
-function minimalEnvForZshProbe(): NodeJS.ProcessEnv {
+/** Only what the login shell needs to find your home + run `printenv`. */
+function minimalEnvForShellProbe(shell: string): NodeJS.ProcessEnv {
   const u = os.userInfo()
   return {
     HOME: os.homedir(),
     USER: u.username,
     LOGNAME: u.username,
-    SHELL: '/bin/zsh',
+    SHELL: shell,
     TERM: 'dumb',
-    // Enough for builtins; real PATH comes from your dotfiles after -il
-    PATH: '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin',
+    PATH: defaultPosixSearchPath(),
     TMPDIR: process.env.TMPDIR || '/tmp',
     ...(process.env.LANG ? { LANG: process.env.LANG } : {}),
   }
@@ -62,12 +81,15 @@ function loginShellPathFallback(): string {
   if (process.platform === 'win32') {
     return process.env.Path ?? process.env.PATH ?? ''
   }
-  const shell = process.env.SHELL || '/bin/zsh'
+  const shell = preferredPosixShell()
+  if (!shell) {
+    return process.env.PATH ?? ''
+  }
   try {
-    return execFileSync(shell, ['-lc', 'printf %s "$PATH"'], {
+    return execFileSync(shell, ['-lc', 'printenv PATH'], {
       encoding: 'utf8',
       timeout: 12_000,
-      env: coerceStringEnv({ ...process.env, TERM: 'dumb', HOME: os.homedir() }),
+      env: coerceStringEnv({ ...process.env, TERM: 'dumb', HOME: os.homedir(), SHELL: shell }),
     }).trim()
   } catch {
     return process.env.PATH ?? ''
@@ -75,7 +97,7 @@ function loginShellPathFallback(): string {
 }
 
 /**
- * Full env after an interactive login zsh — same idea as opening Terminal, without inheriting
+ * Full env after an interactive login shell — same idea as opening Terminal, without inheriting
  * Electron’s GUI-scoped variables that can break dotfile logic.
  */
 function captureTerminalLikeEnv(): Record<string, string> {
@@ -87,29 +109,34 @@ function captureTerminalLikeEnv(): Record<string, string> {
     } as Record<string, string | undefined>)
   }
 
-  try {
-    const out = execFileSync('/bin/zsh', ['-ilc', 'printenv'], {
-      encoding: 'utf8',
-      timeout: 25_000,
-      maxBuffer: 10 * 1024 * 1024,
-      env: minimalEnvForZshProbe(),
-    })
-    const parsed = parsePrintenv(out)
-    if (!parsed.PATH?.trim()) {
-      throw new Error('login capture returned empty PATH')
+  const shell = preferredPosixShell()
+  if (shell) {
+    try {
+      const out = execFileSync(shell, shellCommandArgs(shell, 'printenv'), {
+        encoding: 'utf8',
+        timeout: 25_000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: minimalEnvForShellProbe(shell),
+      })
+      const parsed = parsePrintenv(out)
+      if (!parsed.PATH?.trim()) {
+        throw new Error('login capture returned empty PATH')
+      }
+      return coerceStringEnv(parsed)
+    } catch {
+      // Fall back to the current environment with a repaired PATH.
     }
-    return coerceStringEnv(parsed)
-  } catch {
-    fixPath()
-    const base = process.env as Record<string, string | undefined>
-    const home = os.homedir()
-    const mergedPath = mergePath(loginShellPathFallback(), base.PATH ?? base.Path ?? '')
-    return coerceStringEnv({
-      ...base,
-      HOME: base.HOME || home,
-      PATH: mergedPath,
-    })
   }
+
+  fixPath()
+  const base = process.env as Record<string, string | undefined>
+  const home = os.homedir()
+  const mergedPath = mergePath(loginShellPathFallback(), base.PATH ?? base.Path ?? '')
+  return coerceStringEnv({
+    ...base,
+    HOME: base.HOME || home,
+    PATH: mergedPath,
+  })
 }
 
 function ptyEnv(): Record<string, string> {
@@ -124,7 +151,7 @@ function ptyEnv(): Record<string, string> {
 }
 
 /**
- * Spawn `claude` like Terminal: real PATH/node from captured env, then exec via zsh
+ * Spawn `claude` like Terminal: real PATH/node from captured env, then exec via the user's shell
  * (avoids posix issues with the shim when env was wrong; safe when env is now right).
  */
 function spawnClaudePty(cwd: string, cols: number, rows: number, env: Record<string, string>): IPty {
@@ -140,13 +167,14 @@ function spawnClaudePty(cwd: string, cols: number, rows: number, env: Record<str
     return pty.spawn('claude', [], options)
   }
 
-  if (existsSync('/bin/zsh')) {
-    return pty.spawn('/bin/zsh', ['-ilc', 'exec claude'], options)
+  const shell =
+    (env.SHELL && existsSync(env.SHELL) ? env.SHELL : null) ?? preferredPosixShell()
+
+  if (!shell) {
+    throw new Error('No usable shell found for Claude sessions')
   }
 
-  const shell =
-    process.env.SHELL && existsSync(process.env.SHELL) ? process.env.SHELL : '/bin/bash'
-  return pty.spawn(shell, ['-ilc', 'exec claude'], options)
+  return pty.spawn(shell, shellCommandArgs(shell, 'exec claude'), options)
 }
 
 /** Interactive login shell — absolute binaries only (avoids spawnp lookup issues). */
@@ -173,17 +201,15 @@ function spawnShellPty(cwd: string, cols: number, rows: number, env: Record<stri
     if (shell.includes('fish')) {
       return pty.spawn(shell, ['-l'], options)
     }
-    if (shell.includes('zsh') || shell.includes('bash')) {
+    if (shell.includes('zsh') || shell.includes('bash') || shell.endsWith('/sh')) {
       return pty.spawn(shell, ['-l'], options)
     }
   }
-  if (existsSync('/bin/zsh')) {
-    return pty.spawn('/bin/zsh', ['-l'], options)
+  const fallbackShell = preferredPosixShell()
+  if (fallbackShell) {
+    return pty.spawn(fallbackShell, ['-l'], options)
   }
-  if (existsSync('/bin/bash')) {
-    return pty.spawn('/bin/bash', ['-l'], options)
-  }
-  throw new Error('No usable shell found (expected /bin/zsh or /bin/bash)')
+  throw new Error('No usable shell found (expected zsh, bash, or sh)')
 }
 
 function broadcast(channel: string, ...args: unknown[]) {

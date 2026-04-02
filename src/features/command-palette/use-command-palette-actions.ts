@@ -49,7 +49,7 @@ export function useCommandPaletteActions(): {
       {
         id: 'shell.finder',
         section: 'shell',
-        label: 'Open active workspace in Finder',
+        label: 'Open active workspace in file manager',
         keywords: 'files explorer reveal',
       },
       {
