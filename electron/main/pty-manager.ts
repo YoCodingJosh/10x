@@ -9,6 +9,13 @@ import type { IPty } from 'node-pty'
 
 import fixPath from 'fix-path'
 
+import {
+  cleanupAgentSession,
+  onAgentInput,
+  onAgentOutput,
+  registerAgentSession,
+} from './notification-manager'
+
 const require = createRequire(import.meta.url)
 const pty = require('node-pty') as typeof import('node-pty')
 
@@ -271,6 +278,26 @@ export type PtyCreateOpts = {
   rows: number
   /** @default 'claude' */
   kind?: 'claude' | 'shell'
+  /** Human-readable label shown in macOS notifications */
+  label?: string
+}
+
+/**
+ * Returns true for escape sequences that the terminal emulator (xterm.js) sends
+ * automatically — not as a result of actual user key presses. These should not
+ * be counted as "user has interacted with this session."
+ *
+ * - \x1b[I  focus-in  (VT focus tracking, enabled by Claude Code's Ink TUI via \x1b[?1004h)
+ * - \x1b[O  focus-out (same feature)
+ * - \x1b[\d+;\d+R  cursor position report (response to DSR \x1b[6n)
+ */
+function isAutoTerminalSequence(data: string): boolean {
+  let s = data
+  if (s.endsWith('\r')) s = s.slice(0, -1)
+  if (s.endsWith('\n')) s = s.slice(0, -1)
+  if (s === '\x1b[I' || s === '\x1b[O') return true
+  if (/^\x1b\[\d+;\d+R$/.test(s)) return true
+  return false
 }
 
 export function registerPtyIpc() {
@@ -298,12 +325,18 @@ export function registerPtyIpc() {
       const proc =
         kind === 'shell' ? spawnShellPty(cwd, cols, rows, env) : spawnClaudePty(cwd, cols, rows, env)
 
+      if (kind !== 'shell') {
+        registerAgentSession(sessionId, opts.label ?? sessionId)
+      }
+
       proc.onData((data) => {
         broadcast('pty:data', { sessionId, data })
+        if (kind !== 'shell') onAgentOutput(sessionId, data)
       })
 
       proc.onExit(({ exitCode, signal }) => {
         sessions.delete(sessionId)
+        if (kind !== 'shell') cleanupAgentSession(sessionId)
         broadcast('pty:exit', { sessionId, exitCode, signal })
       })
 
@@ -322,6 +355,13 @@ export function registerPtyIpc() {
   ipcMain.on('pty:write', (_event, sessionId: unknown, data: unknown) => {
     if (typeof sessionId !== 'string' || typeof data !== 'string') return
     sessions.get(sessionId)?.write(data)
+    // Skip focus-in/out sequences that xterm.js sends automatically when Claude Code
+    // enables focus tracking (ESC[?1004h). These are not real user keystrokes and would
+    // otherwise prematurely mark a fresh session as interacted, defeating the
+    // hasReceivedInput guard and triggering blue dots on newly-created agent tabs.
+    if (!isAutoTerminalSequence(data)) {
+      onAgentInput(sessionId)
+    }
   })
 
   ipcMain.on('pty:resize', (_event, sessionId: unknown, cols: unknown, rows: unknown) => {
