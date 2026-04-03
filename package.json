@@ -1,6 +1,6 @@
 {
   "name": "10x",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "license": "MIT",
   "author": "BrightSideDeveloper",
   "private": true,
@@ -9,7 +9,10 @@
   "description": "10x Agentic Workspace",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && electron-builder",
+    "build:bundle": "tsc --noEmit && vite build",
+    "build": "npm run build:bundle && electron-builder",
+    "build:mac": "npm run build:bundle && electron-builder --mac",
+    "build:linux": "npm run build:bundle && electron-builder --linux",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "postinstall": "electron-rebuild -f -w node-pty",
@@ -73,6 +76,10 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Development"
     }
   }
 }

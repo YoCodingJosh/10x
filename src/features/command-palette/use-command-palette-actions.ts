@@ -16,6 +16,10 @@ import type { CommandPaletteItem } from './command-palette-types'
 
 type RunCommand = (id: string) => void | Promise<void>
 
+function isMacPlatform(): boolean {
+  return /Mac|iPhone|iPod|iPad/i.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent)
+}
+
 /**
  * Builds palette rows + runner for the current focused workspace / checkout.
  */
@@ -34,6 +38,9 @@ export function useCommandPaletteActions(): {
   const requestCommit = useCommandPaletteIntentsStore((s) => s.requestCommitDialog)
   const requestPublish = useCommandPaletteIntentsStore((s) => s.requestPublishDialog)
   const requestWorktree = useCommandPaletteIntentsStore((s) => s.requestWorktreeDialog)
+  const fileManagerLabel = isMacPlatform()
+    ? 'Open active workspace in Finder'
+    : 'Open active workspace in file manager'
 
   const wtAligned =
     cwd && wtCwd && normalizeGitCwdKey(cwd) === normalizeGitCwdKey(wtCwd) ? wt : null
@@ -49,7 +56,7 @@ export function useCommandPaletteActions(): {
       {
         id: 'shell.finder',
         section: 'shell',
-        label: 'Open active workspace in Finder',
+        label: fileManagerLabel,
         keywords: 'files explorer reveal',
       },
       {
@@ -152,7 +159,7 @@ export function useCommandPaletteActions(): {
     }
 
     return out
-  }, [cwd, wtAligned, muxFollowUp, visibleWorkspaceId])
+  }, [cwd, fileManagerLabel, wtAligned, muxFollowUp, visibleWorkspaceId])
 
   const run = useCallback(
     async (id: string) => {
