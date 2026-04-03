@@ -16,19 +16,9 @@ function friendlyUpdaterMessage(raw: string): string {
   return raw
 }
 
-/** Brief pause after destroying windows so Squirrel.Mac can see a clean exit (common community workaround). */
-const QUIT_AND_INSTALL_DELAY_MS = 750
-
 function broadcast(channel: string, payload?: unknown) {
   for (const w of BrowserWindow.getAllWindows()) {
     w.webContents.send(channel, payload)
-  }
-}
-
-function closeAllWindowsForUpdateInstall() {
-  app.removeAllListeners('window-all-closed')
-  for (const w of BrowserWindow.getAllWindows()) {
-    w.destroy()
   }
 }
 
@@ -98,14 +88,7 @@ export function registerUpdaterIpc() {
       return { ok: false as const, error: 'Not a packaged build.' }
     }
     setImmediate(() => {
-      // Squirrel.Mac (ShipIt) only swaps the bundle after the process exits. If a window's
-      // close path is blocked or macOS keeps the app alive with no windows, quitAndInstall can
-      // fail silently. Force-destroy windows and drop window-all-closed (see electron#47984).
-      // Short delay after teardown gives the runtime time before the updater replaces the app.
-      closeAllWindowsForUpdateInstall()
-      setTimeout(() => {
-        autoUpdater.quitAndInstall(false, true)
-      }, QUIT_AND_INSTALL_DELAY_MS)
+      autoUpdater.quitAndInstall(false, true)
     })
     return { ok: true as const }
   })
