@@ -86,6 +86,7 @@
       "**/node_modules/node-pty/**/*"
     ],
     "mac": {
+      "artifactName": "${productName}-${arch}.dmg",
       "target": "dmg",
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
