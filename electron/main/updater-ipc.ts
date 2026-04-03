@@ -1,5 +1,8 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
+
+/** CJS package — use default import so ESM main bundle loads correctly at runtime. */
+const { autoUpdater } = electronUpdater
 
 function broadcast(channel: string, payload?: unknown) {
   for (const w of BrowserWindow.getAllWindows()) {
