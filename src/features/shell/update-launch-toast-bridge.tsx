@@ -20,11 +20,12 @@ export function UpdateLaunchToastBridge() {
         const r = await window.mux.updater.checkForUpdates()
         if (cancelled) return
         if (!r.ok || !r.isPackaged || !r.updateAvailable || !r.latestVersion) return
-        if (sessionStorage.getItem(SESSION_DISMISS) === r.latestVersion) return
+        const latestVersion = r.latestVersion
+        if (sessionStorage.getItem(SESSION_DISMISS) === latestVersion) return
 
         toast('A new version of 10x is available', {
           id: TOAST_ID,
-          description: `${r.latestVersion} is ready — you're on ${r.currentVersion}.`,
+          description: `${latestVersion} is ready — you're on ${r.currentVersion}.`,
           duration: Infinity,
           closeButton: true,
           action: {
@@ -34,7 +35,7 @@ export function UpdateLaunchToastBridge() {
           cancel: {
             label: 'Later',
             onClick: () => {
-              sessionStorage.setItem(SESSION_DISMISS, r.latestVersion)
+              sessionStorage.setItem(SESSION_DISMISS, latestVersion)
             },
           },
         })
