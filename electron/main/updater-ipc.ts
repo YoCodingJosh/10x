@@ -12,6 +12,8 @@ function broadcast(channel: string, payload?: unknown) {
 
 export function registerUpdaterIpc() {
   autoUpdater.autoDownload = false
+  /** Required on macOS for manual `downloadUpdate` + `quitAndInstall`: see electron-builder#7279 / MacUpdater.quitAndInstall(). */
+  autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
 
   autoUpdater.on('download-progress', (progress) => {
