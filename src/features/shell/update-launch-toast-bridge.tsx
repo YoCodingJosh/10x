@@ -27,7 +27,6 @@ export function UpdateLaunchToastBridge() {
           id: TOAST_ID,
           description: `${latestVersion} is ready — you're on ${r.currentVersion}.`,
           duration: Infinity,
-          closeButton: true,
           action: {
             label: 'Download',
             onClick: () => void startDownload(),
@@ -55,7 +54,10 @@ export function UpdateLaunchToastBridge() {
           id: '10x-update-restart',
           description: '10x will close and reopen with the new version.',
           duration: Infinity,
-          closeButton: true,
+          cancel: {
+            label: 'Later',
+            onClick: () => {},
+          },
           action: {
             label: 'Restart now',
             onClick: () => void window.mux.updater.quitAndInstall(),
