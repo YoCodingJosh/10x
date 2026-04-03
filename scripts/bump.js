@@ -7,15 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import {
-  cancel,
-  confirm,
-  intro,
-  isCancel,
-  log,
-  outro,
-  select,
-} from '@clack/prompts'
+import { cancel, intro, isCancel, log, outro, select } from '@clack/prompts'
 import color from 'picocolors'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -117,33 +109,18 @@ async function main() {
   log.step(`git tag ${color.cyan(next)}…`)
   run('git', ['tag', next])
 
-  const shouldPush = await confirm({
-    message: `Push branch + tag ${color.cyan(next)} to ${color.bold('origin')}?`,
-    initialValue: false,
-  })
+  const branch =
+    spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).stdout?.trim() ?? 'main'
 
-  if (isCancel(shouldPush)) {
-    cancel('Skipped push.')
-    log.info(`When ready:\n  ${color.dim(`git push origin $(git rev-parse --abbrev-ref HEAD) && git push origin ${next}`)}`)
-    process.exit(0)
-  }
+  log.step(`git push origin ${color.cyan(branch)}…`)
+  run('git', ['push', 'origin', branch])
+  log.step(`git push origin ${color.cyan(next)}…`)
+  run('git', ['push', 'origin', next])
 
-  if (shouldPush) {
-    const branch =
-      spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-        cwd: root,
-        encoding: 'utf8',
-      }).stdout?.trim() ?? 'main'
-    log.step(`git push origin ${color.cyan(branch)}…`)
-    run('git', ['push', 'origin', branch])
-    log.step(`git push origin ${color.cyan(next)}…`)
-    run('git', ['push', 'origin', next])
-    outro(color.green(`You’re live — draft a GitHub Release on ${color.bold(next)} when builds should run.`))
-  } else {
-    outro(
-      `${color.yellow('Tag stays local.')}\n${color.dim(`git push origin $(git rev-parse --abbrev-ref HEAD)`)}${color.dim('\ngit push origin ' + next)}`,
-    )
-  }
+  outro(color.green(`Pushed — publish a GitHub Release on ${color.bold(next)} when you want CI builds.`))
 }
 
 main().catch((e) => {
