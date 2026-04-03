@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   build:
+    environment: release
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
