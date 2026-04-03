@@ -3,6 +3,11 @@
 # That fires `release: published` → release-build.yml uploads DMG / AppImage assets.
 #
 # Requires: GitHub CLI (`gh`) authenticated locally for dispatch from bump.js.
+#
+# The release MUST be created with a PAT (`GH_TOKEN`), not only `GITHUB_TOKEN`:
+# GitHub does not run other workflows for events caused by the default token, so
+# `release-build.yml` would never start. See:
+# https://docs.github.com/en/actions/security-for-github-automatic-token-authentication#using-the-github_token-in-a-workflow
 
 name: Publish release
 
@@ -29,6 +34,7 @@ jobs:
   tag-and-release:
     name: Tag and publish GitHub Release
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -49,10 +55,8 @@ jobs:
             }
           "
 
-      - name: Create tag, push, and publish release
+      - name: Create tag and push
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_BODY: ${{ inputs.release_notes }}
           TAG: ${{ inputs.version }}
         run: |
           set -euo pipefail
@@ -60,6 +64,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
+
+      - name: Publish GitHub Release (PAT — triggers release-build)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RELEASE_BODY: ${{ inputs.release_notes }}
+          TAG: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
           gh release create "$TAG" \
             --title "10x $TAG" \
             --notes "$RELEASE_BODY"
