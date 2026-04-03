@@ -27,7 +27,7 @@ jobs:
               release/*.AppImage
 
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
     steps:
       - name: Check out repository
@@ -51,4 +51,4 @@ jobs:
           files: ${{ matrix.files }}
           overwrite_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
