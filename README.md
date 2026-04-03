@@ -2,6 +2,23 @@
 
 **10x** is a desktop app for running **Claude Code** and **shells** across multiple project folders, with optional **Git worktrees** for isolated agent checkouts. Built with Electron, React, and real terminal sessions (PTY).
 
+## Install
+
+### macOS (Homebrew)
+
+[Homebrew](https://brew.sh) must be installed. Then:
+
+```bash
+brew tap brightsidedeveloper/tap
+brew install --cask 10x
+```
+
+You can also install from the **DMG** on [GitHub Releases](https://github.com/brightsidedeveloper/10x/releases).
+
+### Linux
+
+Use the **AppImage** from [GitHub Releases](https://github.com/brightsidedeveloper/10x/releases).
+
 ## Features
 
 - **Workspaces** — Add several folders; switch between them from the sidebar.
@@ -65,7 +82,7 @@ End users **do not** configure OAuth: **Connect to GitHub** uses GitHub’s [dev
 
 **If you ship or develop this app:** register one [GitHub OAuth app](https://github.com/settings/developers) for your distribution (callback URL can be `http://localhost`). Then either:
 
-1. Set the **Client ID** in [`electron/main/github-bundled-oauth-id.ts`](electron/main/github-bundled-oauth-id.ts) (recommended for DMGs—end users need no config), or  
+1. Set the **Client ID** in [`electron/main/github-bundled-oauth-id.ts`](electron/main/github-bundled-oauth-id.ts) (recommended for DMGs—end users need no config), or
 2. For **local dev**, set `GITHUB_OAUTH_CLIENT_ID` in a `.env` file at the repo root (Electron main loads it on startup via `loadEnvFromAppRoot`).
 
 Optional: `GITHUB_OAUTH_CLIENT_ID` in the process environment overrides both.
