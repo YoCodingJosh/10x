@@ -30,7 +30,7 @@ createRoot(document.getElementById('root')!).render(
             '!border-border !bg-card !text-card-foreground !shadow-lg',
           title: '!text-sm !font-semibold !text-foreground',
           description: '!text-[0.8125rem] !leading-snug !text-muted-foreground',
-          content: '!flex !flex-col !gap-0.5',
+          content: '!flex !w-full !min-w-0 !flex-col !gap-0.5',
           actionButton:
             '!h-7 !rounded-[min(var(--radius-md),12px)] !px-2.5 !text-[0.8rem] !font-medium !shadow-none !border !border-border !bg-accent !text-accent-foreground hover:!bg-accent/85',
           cancelButton:

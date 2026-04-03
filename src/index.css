@@ -141,3 +141,34 @@
   width: 100%;
   background-color: #141414;
 }
+
+/* Sonner — title/description full width, actions on their own row bottom-right */
+[data-sonner-toaster] {
+  --width: min(420px, calc(100vw - 2rem));
+}
+
+[data-sonner-toast][data-styled='true'] {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end;
+  align-items: flex-start;
+  column-gap: 0.5rem;
+  row-gap: 0.625rem;
+}
+
+[data-sonner-toast][data-styled='true'] > [data-icon] {
+  flex: 0 0 auto;
+  order: 0;
+}
+
+[data-sonner-toast][data-styled='true'] > [data-content] {
+  flex: 1 1 100%;
+  min-width: 0;
+  order: 1;
+}
+
+[data-sonner-toast][data-styled='true'] > [data-button] {
+  order: 2;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
