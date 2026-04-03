@@ -52,6 +52,10 @@ declare global {
             }
         >
         addRemote: (args: { cwd: string; remoteName: string; url: string }) => Promise<{ ok: true } | { ok: false; error: string }>
+        diff: (args: {
+          cwd: string
+          mode: 'unstaged' | 'staged' | 'all'
+        }) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
       }
       github: {
         deviceStart: () => Promise<

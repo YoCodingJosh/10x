@@ -129,6 +129,11 @@ const api = {
       ipcRenderer.invoke('git:workingTreeSummary', cwd),
     addRemote: (args: { cwd: string; remoteName: string; url: string }): Promise<GitSimpleResult> =>
       ipcRenderer.invoke('git:addRemote', args),
+    diff: (args: {
+      cwd: string
+      mode: 'unstaged' | 'staged' | 'all'
+    }): Promise<{ ok: true; text: string } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('git:diff', args),
   },
   github: {
     deviceStart: (): Promise<GithubDeviceStart> => ipcRenderer.invoke('github:deviceStart'),
