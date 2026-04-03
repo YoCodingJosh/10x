@@ -171,5 +171,17 @@
   order: 2;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* Group cancel + action on the right; only the first button pulls the pair (margin-left: auto on both was splitting them). */
+[data-sonner-toast][data-styled='true'] > [data-button][data-cancel] {
+  margin-left: auto;
+}
+
+[data-sonner-toast][data-styled='true'] > [data-button][data-action] {
+  margin-left: 0;
+}
+
+[data-sonner-toast][data-styled='true']:not(:has([data-button][data-cancel])) > [data-button][data-action] {
   margin-left: auto;
 }
