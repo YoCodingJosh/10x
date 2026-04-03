@@ -115,6 +115,27 @@ declare global {
         onData: (handler: (payload: { sessionId: string; data: string }) => void) => () => void
         onExit: (handler: (payload: { sessionId: string; exitCode: number; signal?: number }) => void) => () => void
       }
+      updater: {
+        getAppVersion: () => Promise<string>
+        checkForUpdates: () => Promise<
+          | { ok: true; isPackaged: false; currentVersion: string }
+          | {
+              ok: true
+              isPackaged: true
+              currentVersion: string
+              updateAvailable: boolean
+              latestVersion?: string
+            }
+          | { ok: false; currentVersion: string; error: string }
+        >
+        downloadUpdate: () => Promise<{ ok: true } | { ok: false; error: string }>
+        quitAndInstall: () => Promise<{ ok: true } | { ok: false; error: string }>
+        onDownloadProgress: (
+          handler: (payload: { percent: number; transferred: number; total: number }) => void,
+        ) => () => void
+        onUpdateDownloaded: (handler: () => void) => () => void
+        onError: (handler: (payload: { message: string }) => void) => () => void
+      }
     }
   }
 }

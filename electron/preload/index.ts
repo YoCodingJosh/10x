@@ -83,6 +83,17 @@ type GithubCreatePrContext =
   | { applicable: false }
   | { applicable: true; hasOpenPr: boolean; hasMergedPr: boolean; compareUrl: string }
 
+type UpdaterCheckResult =
+  | { ok: true; isPackaged: false; currentVersion: string }
+  | {
+      ok: true
+      isPackaged: true
+      currentVersion: string
+      updateAvailable: boolean
+      latestVersion?: string
+    }
+  | { ok: false; currentVersion: string; error: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -204,6 +215,36 @@ const api = {
       ) => handler(payload)
       ipcRenderer.on('pty:exit', listener)
       return () => ipcRenderer.removeListener('pty:exit', listener)
+    },
+  },
+  updater: {
+    getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+    checkForUpdates: (): Promise<UpdaterCheckResult> =>
+      ipcRenderer.invoke('updater:checkForUpdates'),
+    downloadUpdate: (): Promise<{ ok: true } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('updater:downloadUpdate'),
+    quitAndInstall: (): Promise<{ ok: true } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('updater:quitAndInstall'),
+    onDownloadProgress: (
+      handler: (payload: { percent: number; transferred: number; total: number }) => void,
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { percent: number; transferred: number; total: number },
+      ) => handler(payload)
+      ipcRenderer.on('updater:download-progress', listener)
+      return () => ipcRenderer.removeListener('updater:download-progress', listener)
+    },
+    onUpdateDownloaded: (handler: () => void): (() => void) => {
+      const listener = () => handler()
+      ipcRenderer.on('updater:update-downloaded', listener)
+      return () => ipcRenderer.removeListener('updater:update-downloaded', listener)
+    },
+    onError: (handler: (payload: { message: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { message: string }) =>
+        handler(payload)
+      ipcRenderer.on('updater:error', listener)
+      return () => ipcRenderer.removeListener('updater:error', listener)
     },
   },
 }

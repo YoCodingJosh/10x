@@ -11,6 +11,7 @@ import { registerGitIpc } from './git-ipc'
 import { loadEnvFromAppRoot } from './load-env'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
 import { registerShellIpc } from './shell-ipc'
+import { registerUpdaterIpc } from './updater-ipc'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -100,6 +101,7 @@ registerAgentAttentionIpc()
 registerGitIpc()
 registerGithubIpc()
 registerShellIpc()
+registerUpdaterIpc()
 
 ipcMain.handle('dialog:pickWorkspace', async (event) => {
   const parent =

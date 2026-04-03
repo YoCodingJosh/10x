@@ -7,11 +7,13 @@ import { WorkspaceFetchOnChangeBridge } from '@/features/git/workspace-fetch-on-
 import { StatusBar } from '@/features/status-bar/status-bar'
 
 import { MainDiffSplit } from '@/features/diff-panel/main-diff-split'
+import { UpdateLaunchToastBridge } from '@/features/shell/update-launch-toast-bridge'
 import { WorkspaceSync } from './workspace-sync'
 
 export function AppShell() {
   return (
     <>
+      <UpdateLaunchToastBridge />
       <WorkspaceSync />
       <GitFocusedCheckoutBridge />
       <WorkspaceFetchOnChangeBridge />
