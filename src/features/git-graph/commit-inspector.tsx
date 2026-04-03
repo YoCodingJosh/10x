@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { Check, Copy, Loader2 } from 'lucide-react'
 
@@ -139,45 +140,47 @@ export function CommitInspector({ loading, error, data }: Props) {
             <span className="text-foreground/80">({data.files.length})</span>
           </span>
         </summary>
-        <ul className="max-h-40 space-y-0.5 overflow-y-auto border-t border-border/60 px-2 py-1.5">
-          {data.files.length === 0 ? (
-            <li className="text-xs text-muted-foreground">No file changes.</li>
-          ) : (
-            data.files.map((f) => (
-              <li
-                key={f.path + (f.oldPath ?? '')}
-                className="flex min-w-0 items-start gap-2 font-mono text-[11px] leading-tight"
-              >
-                <span
-                  className={cn(
-                    'mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold',
-                    STATUS_CLASS[f.status],
-                  )}
-                  title={f.status}
+        <ScrollArea className="max-h-40 border-t border-border/60">
+          <ul className="space-y-0.5 px-2 py-1.5">
+            {data.files.length === 0 ? (
+              <li className="text-xs text-muted-foreground">No file changes.</li>
+            ) : (
+              data.files.map((f) => (
+                <li
+                  key={f.path + (f.oldPath ?? '')}
+                  className="flex min-w-0 items-start gap-2 font-mono text-[11px] leading-tight"
                 >
-                  {STATUS_LETTER[f.status]}
-                </span>
-                <span className="min-w-0 flex-1 break-all text-foreground">
-                  {f.status === 'renamed' && f.oldPath ? (
-                    <>
-                      <span className="text-muted-foreground">{f.oldPath}</span>
-                      <span className="px-1 text-muted-foreground">→</span>
-                      {f.path}
-                    </>
-                  ) : (
-                    f.path
-                  )}
-                </span>
-                {(f.additions > 0 || f.deletions > 0) && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
-                    <span className="text-emerald-600 dark:text-emerald-400">+{f.additions}</span>{' '}
-                    <span className="text-red-600 dark:text-red-400">−{f.deletions}</span>
+                  <span
+                    className={cn(
+                      'mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded text-[0.6rem] font-bold',
+                      STATUS_CLASS[f.status],
+                    )}
+                    title={f.status}
+                  >
+                    {STATUS_LETTER[f.status]}
                   </span>
-                )}
-              </li>
-            ))
-          )}
-        </ul>
+                  <span className="min-w-0 flex-1 break-all text-foreground">
+                    {f.status === 'renamed' && f.oldPath ? (
+                      <>
+                        <span className="text-muted-foreground">{f.oldPath}</span>
+                        <span className="px-1 text-muted-foreground">→</span>
+                        {f.path}
+                      </>
+                    ) : (
+                      f.path
+                    )}
+                  </span>
+                  {(f.additions > 0 || f.deletions > 0) && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                      <span className="text-emerald-600 dark:text-emerald-400">+{f.additions}</span>{' '}
+                      <span className="text-red-600 dark:text-red-400">−{f.deletions}</span>
+                    </span>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
+        </ScrollArea>
       </details>
     </div>
   )

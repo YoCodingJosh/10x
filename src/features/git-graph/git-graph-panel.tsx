@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -6,6 +6,7 @@ import { CommitInspector, formatRelativeShort, type CommitInspectData } from '@/
 import { DiffFileBlock } from '@/features/diff-panel/diff-file-block'
 import { parseUnifiedDiff } from '@/features/diff-panel/parse-unified-diff'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
+import { SplitSash } from '@/features/shell/split-sash'
 import { cn } from '@/lib/utils'
 import { useSidePanelStore } from '@/stores/side-panel-store'
 import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
@@ -19,6 +20,10 @@ type LogCommit = {
   dateIso: string
   refs: string
 }
+
+/** Same ratio as previous flex-1 : flex-[1.15] : flex-[1.25] (sums to 3.4). */
+const DEFAULT_SECTION_FRACS: [number, number, number] = [1 / 3.4, 1.15 / 3.4, 1.25 / 3.4]
+const MIN_SECTION_FRAC = 0.07
 
 export function GitGraphPanel() {
   const cwd = useGitCwdForVisibleWorkspace()
@@ -143,6 +148,65 @@ export function GitGraphPanel() {
     [commits.length],
   )
 
+  const [sectionFracs, setSectionFracs] = useState<[number, number, number]>(() => [...DEFAULT_SECTION_FRACS])
+  const splitBodyRef = useRef<HTMLDivElement>(null)
+  const sashDragRef = useRef<{
+    pointerId: number
+    which: 'commits-commit' | 'commit-diff'
+    startY: number
+    startFracs: [number, number, number]
+  } | null>(null)
+
+  const onSplitSashPointerDown = useCallback(
+    (which: 'commits-commit' | 'commit-diff', e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      sashDragRef.current = {
+        pointerId: e.pointerId,
+        which,
+        startY: e.clientY,
+        startFracs: [...sectionFracs],
+      }
+      e.currentTarget.setPointerCapture(e.pointerId)
+    },
+    [sectionFracs],
+  )
+
+  const onSplitSashPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = sashDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    const el = splitBodyRef.current
+    if (!el) return
+    const h = el.getBoundingClientRect().height
+    if (h < 32) return
+    const delta = (e.clientY - d.startY) / h
+    if (d.which === 'commits-commit') {
+      const [a0, b0, c0] = d.startFracs
+      const na = Math.min(Math.max(a0 + delta, MIN_SECTION_FRAC), a0 + b0 - MIN_SECTION_FRAC)
+      const nb = a0 + b0 - na
+      setSectionFracs([na, nb, c0])
+    } else {
+      const [a0, b0, c0] = d.startFracs
+      const nb = Math.min(Math.max(b0 + delta, MIN_SECTION_FRAC), b0 + c0 - MIN_SECTION_FRAC)
+      const nc = b0 + c0 - nb
+      setSectionFracs([a0, nb, nc])
+    }
+  }, [])
+
+  const onSplitSashPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = sashDragRef.current
+    if (!d || d.pointerId !== e.pointerId) return
+    sashDragRef.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const sectionFlex = (i: 0 | 1 | 2) =>
+    ({ flexGrow: sectionFracs[i], flexShrink: 1, flexBasis: 0, minHeight: 0 }) as const
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
       <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border px-2">
@@ -173,8 +237,8 @@ export function GitGraphPanel() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="flex min-h-0 flex-1 flex-col border-b border-border/80">
+      <div ref={splitBodyRef} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-col" style={sectionFlex(0)}>
           <div className="shrink-0 border-b border-border/60 px-2 py-1">
             <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
               Commits
@@ -230,7 +294,16 @@ export function GitGraphPanel() {
           </ScrollArea>
         </div>
 
-        <div className="flex min-h-0 flex-[1.15] flex-col border-b border-border/80">
+        <SplitSash
+          orientation="horizontal"
+          aria-label="Resize commits and commit sections"
+          onPointerDown={(e) => onSplitSashPointerDown('commits-commit', e)}
+          onPointerMove={onSplitSashPointerMove}
+          onPointerUp={onSplitSashPointerUp}
+          onPointerCancel={onSplitSashPointerUp}
+        />
+
+        <div className="flex min-h-0 flex-col" style={sectionFlex(1)}>
           <div className="shrink-0 border-b border-border/60 px-2 py-1">
             <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
               Commit
@@ -252,7 +325,16 @@ export function GitGraphPanel() {
           </ScrollArea>
         </div>
 
-        <div className="flex min-h-0 flex-[1.25] flex-col">
+        <SplitSash
+          orientation="horizontal"
+          aria-label="Resize commit and diff sections"
+          onPointerDown={(e) => onSplitSashPointerDown('commit-diff', e)}
+          onPointerMove={onSplitSashPointerMove}
+          onPointerUp={onSplitSashPointerUp}
+          onPointerCancel={onSplitSashPointerUp}
+        />
+
+        <div className="flex min-h-0 flex-col" style={sectionFlex(2)}>
           <div className="shrink-0 border-b border-border/60 px-2 py-1">
             <p className="text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground">
               Diff
