@@ -4,6 +4,17 @@ import electronUpdater from 'electron-updater'
 /** CJS package — use default import so ESM main bundle loads correctly at runtime. */
 const { autoUpdater } = electronUpdater
 
+/** Release tag exists but CI has not uploaded `latest-*.yml` / blockmap yet (GitHub 404). */
+function friendlyUpdaterMessage(raw: string): string {
+  if (
+    /latest-mac\.yml|latest-linux\.yml|latest\.yml/i.test(raw) &&
+    (/\b404\b|Cannot find|Not Found|HttpError/i.test(raw) || /status code 404/i.test(raw))
+  ) {
+    return 'Fresh build in progress — please wait a few minutes and try again.'
+  }
+  return raw
+}
+
 function broadcast(channel: string, payload?: unknown) {
   for (const w of BrowserWindow.getAllWindows()) {
     w.webContents.send(channel, payload)
@@ -29,7 +40,7 @@ export function registerUpdaterIpc() {
   })
 
   autoUpdater.on('error', (err) => {
-    broadcast('updater:error', { message: err.message })
+    broadcast('updater:error', { message: friendlyUpdaterMessage(err.message) })
   })
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
@@ -51,7 +62,7 @@ export function registerUpdaterIpc() {
         latestVersion: updateAvailable ? latestVersion : undefined,
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
+      const message = friendlyUpdaterMessage(e instanceof Error ? e.message : String(e))
       return { ok: false as const, currentVersion, error: message }
     }
   })
@@ -64,7 +75,8 @@ export function registerUpdaterIpc() {
       await autoUpdater.downloadUpdate()
       return { ok: true as const }
     } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+      const raw = e instanceof Error ? e.message : String(e)
+      return { ok: false as const, error: friendlyUpdaterMessage(raw) }
     }
   })
 
