@@ -29,14 +29,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # electron-updater fetches latest-mac.yml / latest-linux.yml from the same release (must be uploaded).
           - label: macOS
             os: macos-latest
             files: |
               release/*.dmg
+              release/*.yml
           - label: Linux
             os: ubuntu-latest
             files: |
               release/*.AppImage
+              release/*.yml
 
     steps:
       - name: Check out repository
