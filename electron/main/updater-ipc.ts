@@ -1,16 +1,17 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 import electronUpdater from 'electron-updater'
 
+import { FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE } from '@/features/updater/updater-messages'
+
 /** CJS package — use default import so ESM main bundle loads correctly at runtime. */
 const { autoUpdater } = electronUpdater
 
-/** Release tag exists but CI has not uploaded `latest-*.yml` / blockmap yet (GitHub 404). */
 function friendlyUpdaterMessage(raw: string): string {
   if (
     /latest-mac\.yml|latest-linux\.yml|latest\.yml/i.test(raw) &&
     (/\b404\b|Cannot find|Not Found|HttpError/i.test(raw) || /status code 404/i.test(raw))
   ) {
-    return 'Fresh build in progress — please wait a few minutes and try again.'
+    return FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE
   }
   return raw
 }
@@ -25,6 +26,8 @@ export function registerUpdaterIpc() {
   autoUpdater.autoDownload = false
   /** Required on macOS for manual `downloadUpdate` + `quitAndInstall`: see electron-builder#7279 / MacUpdater.quitAndInstall(). */
   autoUpdater.autoInstallOnAppQuit = false
+  /** MacUpdater uses this in handleUpdateDownloaded(); must stay true or Squirrel only quits without installing. */
+  autoUpdater.autoRunAppAfterInstall = true
   autoUpdater.allowPrerelease = false
 
   autoUpdater.on('download-progress', (progress) => {
@@ -84,7 +87,18 @@ export function registerUpdaterIpc() {
     if (!app.isPackaged) {
       return { ok: false as const, error: 'Not a packaged build.' }
     }
-    setImmediate(() => autoUpdater.quitAndInstall(false, true))
+    setImmediate(() => {
+      if (process.platform === 'darwin') {
+        // Squirrel.Mac (ShipIt) only swaps the bundle after the process exits. If a window's
+        // close path is blocked or macOS keeps the app alive with no windows, quitAndInstall can
+        // fail silently. Force-destroy windows and drop window-all-closed (see electron#47984).
+        app.removeAllListeners('window-all-closed')
+        for (const w of BrowserWindow.getAllWindows()) {
+          w.destroy()
+        }
+      }
+      autoUpdater.quitAndInstall(false, true)
+    })
     return { ok: true as const }
   })
 }
