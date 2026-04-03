@@ -21,9 +21,6 @@
     "rebuild:native": "electron-rebuild -f -w node-pty"
   },
   "pnpm": {
-    "ignoredBuiltDependencies": [
-      "msw"
-    ],
     "onlyBuiltDependencies": [
       "@electron/rebuild",
       "electron",
