@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 
 import type { SettingsPanelProps } from '@/features/settings/settings-sections'
+import { FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE } from '@/features/updater/updater-messages'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -129,7 +130,9 @@ export function GeneralSettingsPanel(_props: SettingsPanelProps) {
         <p
           className={cn(
             'text-sm',
-            phase.kind === 'error' ? 'text-destructive' : 'text-muted-foreground',
+            phase.kind === 'error' &&
+              (phase.message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE ? 'text-sky-400' : 'text-destructive'),
+            phase.kind !== 'error' && 'text-muted-foreground',
           )}
         >
           {phase.kind === 'idle' && 'See if a newer build is available on GitHub.'}

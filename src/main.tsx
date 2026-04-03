@@ -23,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
       position="bottom-right"
       closeButton={false}
       richColors={false}
+      icons={{ info: null }}
       className="font-sans"
       toastOptions={{
         classNames: {

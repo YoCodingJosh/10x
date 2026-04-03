@@ -1,5 +1,7 @@
 import { toast } from 'sonner'
 
+import { FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE } from '@/features/updater/updater-messages'
+
 export const UPDATE_AVAILABLE_TOAST_ID = '10x-update-available'
 export const UPDATE_RESTART_TOAST_ID = '10x-update-restart'
 
@@ -7,6 +9,19 @@ export const UPDATE_RESTART_TOAST_ID = '10x-update-restart'
 export const RELEASES_LATEST_URL = 'https://github.com/brightsidedeveloper/10x/releases/latest'
 
 const SESSION_DISMISS = '10x.dismissedUpdateVersion'
+
+function toastUpdaterFailure(message: string, duration: number) {
+  if (message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
+    toast(message, {
+      duration,
+      classNames: {
+        title: '!text-sm !font-semibold !text-sky-400',
+      },
+    })
+    return
+  }
+  toast.error(message, { duration })
+}
 
 type OpenUpdateArgs = {
   currentVersion: string
@@ -80,7 +95,8 @@ export async function startDownloadAndShowRestartToast() {
     })
   } catch (e) {
     toast.dismiss(loadingId)
-    toast.error(e instanceof Error ? e.message : 'Download failed', { duration: 10_000 })
+    const msg = e instanceof Error ? e.message : 'Download failed'
+    toastUpdaterFailure(msg, 10_000)
   }
 }
 
@@ -94,7 +110,7 @@ export async function toastResultOfManualUpdateCheck() {
     const r = await window.mux.updater.checkForUpdates()
     toast.dismiss(loadingId)
     if (!r.ok) {
-      toast.error(r.error, { duration: 7_000 })
+      toastUpdaterFailure(r.error, 7_000)
       return
     }
     if (!r.isPackaged) {
