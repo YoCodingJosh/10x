@@ -5,19 +5,11 @@ import { FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE } from '@/features/updater/u
 export const UPDATE_AVAILABLE_TOAST_ID = '10x-update-available'
 export const UPDATE_RESTART_TOAST_ID = '10x-update-restart'
 
-/** Latest release page — manual DMG when Squirrel/ShipIt does not replace `/Applications/10x.app`. */
-export const RELEASES_LATEST_URL = 'https://github.com/brightsidedeveloper/10x/releases/latest'
-
 const SESSION_DISMISS = '10x.dismissedUpdateVersion'
 
 function toastUpdaterFailure(message: string, duration: number) {
   if (message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
-    toast(message, {
-      duration,
-      classNames: {
-        title: '!text-sm !font-semibold !text-sky-400',
-      },
-    })
+    toast(message, { duration })
     return
   }
   toast.error(message, { duration })
@@ -53,26 +45,6 @@ export function openUpdateAvailableToast({ currentVersion, latestVersion, respec
   return true
 }
 
-function RestartToastDescription() {
-  return (
-    <div className="flex flex-col gap-1.5 text-[0.8125rem] leading-snug text-muted-foreground">
-      <p>10x will close and reopen with the new version.</p>
-      <p>
-        If the version in the status bar does not change after restart, the in-app updater did not replace the app (a macOS Squirrel
-        limitation — notarization does not fix it). Install the latest{' '}
-        <button
-          type="button"
-          className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
-          onClick={() => void window.mux.shell.openExternal(RELEASES_LATEST_URL)}
-        >
-          DMG from GitHub
-        </button>
-        .
-      </p>
-    </div>
-  )
-}
-
 export async function startDownloadAndShowRestartToast() {
   toast.dismiss(UPDATE_AVAILABLE_TOAST_ID)
   const loadingId = toast.loading('Downloading update…')
@@ -82,7 +54,7 @@ export async function startDownloadAndShowRestartToast() {
     toast.dismiss(loadingId)
     toast('Restart to finish updating', {
       id: UPDATE_RESTART_TOAST_ID,
-      description: <RestartToastDescription />,
+      description: 'The app will quit and reopen.',
       duration: Infinity,
       cancel: {
         label: 'Later',
