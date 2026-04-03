@@ -346,7 +346,7 @@ export function registerPtyIpc() {
       let message = err instanceof Error ? err.message : String(err)
       if (message.includes('posix_spawn')) {
         message +=
-          ' — Rebuild node-pty for this Electron: npm run rebuild:native (or npm install).'
+          ' — Rebuild node-pty for this Electron: pnpm run rebuild:native (or pnpm install).'
       }
       return { ok: false as const, error: message }
     }

@@ -45,7 +45,7 @@ Implementation detail: Git commands and IPC live in [`electron/main/git-ipc.ts`]
 
 ## Requirements
 
-- **Node.js** (LTS recommended) and **npm**
+- **Node.js** (LTS recommended) and **pnpm** (via Corepack or a global install)
 - **macOS** or **Linux** for packaged builds. Packaging is still native per platform: build mac artifacts on macOS and Linux artifacts on Linux.
 
 You need the **Claude Code** CLI on your `PATH` for agent sessions, and **Cursor** on your `PATH` if you use “open in Cursor.”
@@ -53,11 +53,11 @@ You need the **Claude Code** CLI on your `PATH` for agent sessions, and **Cursor
 ## Development
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-This runs the Vite dev server and launches the Electron shell. Native modules (`node-pty`) are rebuilt on `npm install` via `postinstall`.
+This runs the Vite dev server and launches the Electron shell. Native modules (`node-pty`) are rebuilt on `pnpm install` via `postinstall`.
 
 ### GitHub (Settings)
 
@@ -71,19 +71,19 @@ End users **do not** configure OAuth: **Connect to GitHub** uses GitHub’s [dev
 Optional: `GITHUB_OAUTH_CLIENT_ID` in the process environment overrides both.
 
 ```bash
-npm run typecheck
+pnpm typecheck
 ```
 
 ## Production build
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Builds for the current host platform and writes artifacts under `release/`.
 
-- On **macOS**, `npm run build` or `npm run build:mac` produces a **DMG**.
-- On **Linux**, `npm run build` or `npm run build:linux` produces an **AppImage**.
+- On **macOS**, `pnpm build` or `pnpm build:mac` produces a **DMG**.
+- On **Linux**, `pnpm build` or `pnpm build:linux` produces an **AppImage**.
 
 Published GitHub releases also trigger GitHub Actions to build both targets and upload those artifacts back to the release automatically.
 
