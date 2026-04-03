@@ -5,19 +5,29 @@
   "author": "BrightSideDeveloper",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "main": "dist-electron/main/index.js",
   "description": "10x Agentic Workspace",
   "scripts": {
     "dev": "vite",
     "build:bundle": "tsc --noEmit && vite build",
-    "build": "npm run build:bundle && electron-builder",
-    "build:mac": "npm run build:bundle && electron-builder --mac",
-    "build:linux": "npm run build:bundle && electron-builder --linux",
+    "build": "pnpm run build:bundle && electron-builder",
+    "build:mac": "pnpm run build:bundle && electron-builder --mac",
+    "build:linux": "pnpm run build:bundle && electron-builder --linux",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "bump": "node scripts/bump.js",
     "postinstall": "electron-rebuild -f -w node-pty",
     "rebuild:native": "electron-rebuild -f -w node-pty"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@electron/rebuild",
+      "electron",
+      "esbuild",
+      "msw",
+      "node-pty"
+    ]
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
