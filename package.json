@@ -88,8 +88,8 @@
       "**/node_modules/node-pty/**/*"
     ],
     "mac": {
-      "artifactName": "${productName}-${arch}.dmg",
-      "target": "dmg",
+      "artifactName": "${productName}-${arch}.${ext}",
+      "target": ["dmg", "zip"],
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
