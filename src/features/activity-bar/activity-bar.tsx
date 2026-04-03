@@ -6,11 +6,15 @@ import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-vis
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { SettingsDialog } from '@/features/settings/settings-dialog'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
-import { Code2, FolderOpen, Globe, Settings } from 'lucide-react'
+import { useDiffPanelStore } from '@/stores/diff-panel-store'
+import { cn } from '@/lib/utils'
+import { Code2, FolderOpen, GitCompare, Globe, Settings } from 'lucide-react'
 
 export function ActivityBar() {
   const active = useActiveWorkspace()
   const focusedAgentPath = useGitCwdForVisibleWorkspace()
+  const diffOpen = useDiffPanelStore((s) => s.open)
+  const toggleDiffPanel = useDiffPanelStore((s) => s.toggle)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   async function revealActiveWorkspace() {
@@ -81,6 +85,17 @@ export function ActivityBar() {
         disabled={!active?.path}
       >
         <Globe className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        title="Toggle diff panel (working tree)"
+        aria-pressed={diffOpen}
+        className={cn(diffOpen && 'bg-accent text-accent-foreground')}
+        onClick={() => toggleDiffPanel()}
+      >
+        <GitCompare className="size-4" />
       </Button>
       <ActivityBarGitMenu />
         </div>

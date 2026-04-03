@@ -841,6 +841,33 @@ export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<Creat
   return { ok: true, worktreePath, branch }
 }
 
+export type GitDiffMode = 'unstaged' | 'staged' | 'all'
+
+export async function gitDiff(
+  cwd: string,
+  mode: GitDiffMode,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const trimmed = cwd.trim()
+  if (!trimmed) {
+    return { ok: false, error: 'Invalid path.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a git repository.' }
+  }
+  const args =
+    mode === 'unstaged'
+      ? ['diff', '--no-ext-diff', '--no-color']
+      : mode === 'staged'
+        ? ['diff', '--cached', '--no-ext-diff', '--no-color']
+        : ['diff', 'HEAD', '--no-ext-diff', '--no-color']
+  const r = await runGit(trimmed, args)
+  if (!r.ok) {
+    return { ok: false, error: r.error }
+  }
+  return { ok: true, text: r.stdout }
+}
+
 export function registerGitIpc() {
   ipcMain.handle('git:openOriginInBrowser', async (_e: IpcMainInvokeEvent, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd.trim()) {
@@ -973,6 +1000,21 @@ export function registerGitIpc() {
         return { ok: false, error: 'Invalid remote name or URL.' } satisfies GitSimpleResult
       }
       return gitAddRemote(args.cwd.trim(), args.remoteName, args.url)
+    },
+  )
+
+  ipcMain.handle(
+    'git:diff',
+    async (
+      _e: IpcMainInvokeEvent,
+      args: { cwd: string; mode: GitDiffMode },
+    ) => {
+      if (typeof args?.cwd !== 'string' || !args.cwd.trim()) {
+        return { ok: false, error: 'Invalid path.' }
+      }
+      const mode: GitDiffMode =
+        args.mode === 'staged' || args.mode === 'unstaged' ? args.mode : 'all'
+      return gitDiff(args.cwd.trim(), mode)
     },
   )
 }
