@@ -97,11 +97,11 @@ async function main() {
   pkg.version = next
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
 
-  log.step('npm install (refresh lockfile)…')
-  run('npm', ['install'])
+  log.step('pnpm install (refresh lockfile)…')
+  run('pnpm', ['install'])
 
-  log.step('git add package.json & package-lock.json…')
-  run('git', ['add', 'package.json', 'package-lock.json'])
+  log.step('git add package.json & pnpm-lock.yaml…')
+  run('git', ['add', 'package.json', 'pnpm-lock.yaml'])
 
   log.step(`git commit — ${color.dim('chore: bump version to ' + next)}…`)
   run('git', ['commit', '-m', `chore: bump version to ${next}`])
