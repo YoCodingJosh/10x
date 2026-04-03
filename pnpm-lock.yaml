@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@electron/notarize@2.5.0':
+    hash: 905f4c9632a68cffdc8b28eed198be05f03837129789e1e8c4a39b0f518acda6
+    path: patches/@electron__notarize@2.5.0.patch
+
 importers:
 
   .:
@@ -4386,7 +4391,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/notarize@2.5.0':
+  '@electron/notarize@2.5.0(patch_hash=905f4c9632a68cffdc8b28eed198be05f03837129789e1e8c4a39b0f518acda6)':
     dependencies:
       debug: 4.4.3
       fs-extra: 9.1.0
@@ -5788,7 +5793,7 @@ snapshots:
   app-builder-lib@25.1.8(dmg-builder@25.1.8)(electron-builder-squirrel-windows@25.1.8):
     dependencies:
       '@develar/schema-utils': 2.6.5
-      '@electron/notarize': 2.5.0
+      '@electron/notarize': 2.5.0(patch_hash=905f4c9632a68cffdc8b28eed198be05f03837129789e1e8c4a39b0f518acda6)
       '@electron/osx-sign': 1.3.1
       '@electron/rebuild': 3.6.1
       '@electron/universal': 2.0.1
