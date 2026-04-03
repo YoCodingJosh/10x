@@ -94,6 +94,39 @@ type UpdaterCheckResult =
     }
   | { ok: false; currentVersion: string; error: string }
 
+type GitLogCommitRow = {
+  hash: string
+  parents: string[]
+  subject: string
+  authorName: string
+  dateIso: string
+  refs: string
+}
+
+type GitLogGraphResult =
+  | { ok: true; commits: GitLogCommitRow[] }
+  | { ok: false; error: string }
+
+type GitCommitFileEntry = {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'renamed'
+  oldPath?: string
+  additions: number
+  deletions: number
+}
+
+type GitCommitInspectResult =
+  | {
+      ok: true
+      hash: string
+      shortHash: string
+      subject: string
+      authorName: string
+      dateIso: string
+      files: GitCommitFileEntry[]
+    }
+  | { ok: false; error: string }
+
 const api = {
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
@@ -145,6 +178,17 @@ const api = {
       mode: 'unstaged' | 'staged' | 'all'
     }): Promise<{ ok: true; text: string } | { ok: false; error: string }> =>
       ipcRenderer.invoke('git:diff', args),
+    logGraph: (cwd: string): Promise<GitLogGraphResult> =>
+      ipcRenderer.invoke('git:logGraph', cwd),
+    commitInspect: (args: {
+      cwd: string
+      hash: string
+    }): Promise<GitCommitInspectResult> => ipcRenderer.invoke('git:commitInspect', args),
+    commitDiff: (args: {
+      cwd: string
+      hash: string
+    }): Promise<{ ok: true; text: string } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('git:commitDiff', args),
   },
   github: {
     deviceStart: (): Promise<GithubDeviceStart> => ipcRenderer.invoke('github:deviceStart'),

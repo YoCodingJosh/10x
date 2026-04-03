@@ -6,7 +6,7 @@ import { GitFocusedCheckoutBridge } from '@/features/git/git-focused-checkout-br
 import { WorkspaceFetchOnChangeBridge } from '@/features/git/workspace-fetch-on-change-bridge'
 import { StatusBar } from '@/features/status-bar/status-bar'
 
-import { MainDiffSplit } from '@/features/diff-panel/main-diff-split'
+import { SidePanelSplit } from '@/features/side-panel/side-panel-split'
 import { UpdateLaunchToastBridge } from '@/features/shell/update-launch-toast-bridge'
 import { WorkspaceSync } from './workspace-sync'
 
@@ -23,7 +23,7 @@ export function AppShell() {
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
         <div className="flex min-h-0 flex-1">
           <ActivityBar />
-          <MainDiffSplit />
+          <SidePanelSplit />
         </div>
         <StatusBar />
       </div>

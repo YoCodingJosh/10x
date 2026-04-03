@@ -6,15 +6,15 @@ import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-vis
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { SettingsDialog } from '@/features/settings/settings-dialog'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
-import { useDiffPanelStore } from '@/stores/diff-panel-store'
+import { useSidePanelStore } from '@/stores/side-panel-store'
 import { cn } from '@/lib/utils'
-import { Code2, FolderOpen, GitCompare, Globe, Settings } from 'lucide-react'
+import { Code2, FolderOpen, GitGraph, GitCompare, Globe, Settings } from 'lucide-react'
 
 export function ActivityBar() {
   const active = useActiveWorkspace()
   const focusedAgentPath = useGitCwdForVisibleWorkspace()
-  const diffOpen = useDiffPanelStore((s) => s.open)
-  const toggleDiffPanel = useDiffPanelStore((s) => s.toggle)
+  const activePanel = useSidePanelStore((s) => s.active)
+  const toggleSidePanel = useSidePanelStore((s) => s.toggle)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   async function revealActiveWorkspace() {
@@ -38,14 +38,11 @@ export function ActivityBar() {
   async function openGitOriginInBrowser() {
     const path = active?.path
     if (!path) return
-    await runWithStatusActivity(
-      { domain: 'git', label: 'Opening remote', detail: path },
-      async () => {
-        const r = await window.mux.git.openOriginInBrowser(path)
-        if (!r.ok) window.alert(r.error)
-        return r
-      },
-    )
+    await runWithStatusActivity({ domain: 'git', label: 'Opening remote', detail: path }, async () => {
+      const r = await window.mux.git.openOriginInBrowser(path)
+      if (!r.ok) window.alert(r.error)
+      return r
+    })
   }
 
   return (
@@ -56,58 +53,62 @@ export function ActivityBar() {
         aria-label="Activity bar"
       >
         <div className="flex flex-col items-center gap-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        title="Open the focused agent's folder in Cursor (workspace root, or worktree if this tab uses one)"
-        onClick={() => void openFocusedAgentInCursor()}
-        disabled={!focusedAgentPath}
-      >
-        <Code2 className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        title="Open active workspace folder in the file manager"
-        onClick={() => void revealActiveWorkspace()}
-        disabled={!active?.path}
-      >
-        <FolderOpen className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        title="Open origin remote in the browser (HTTPS)"
-        onClick={() => void openGitOriginInBrowser()}
-        disabled={!active?.path}
-      >
-        <Globe className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        title="Toggle diff panel (working tree)"
-        aria-pressed={diffOpen}
-        className={cn(diffOpen && 'bg-accent text-accent-foreground')}
-        onClick={() => toggleDiffPanel()}
-      >
-        <GitCompare className="size-4" />
-      </Button>
-      <ActivityBarGitMenu />
-        </div>
-        <div className="mt-auto flex flex-col items-center pb-1 pt-2">
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            title="Settings"
-            aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
+            title="Open the focused agent's folder in Cursor (workspace root, or worktree if this tab uses one)"
+            onClick={() => void openFocusedAgentInCursor()}
+            disabled={!focusedAgentPath}
           >
+            <Code2 className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Open active workspace folder in the file manager"
+            onClick={() => void revealActiveWorkspace()}
+            disabled={!active?.path}
+          >
+            <FolderOpen className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Open origin remote in the browser (HTTPS)"
+            onClick={() => void openGitOriginInBrowser()}
+            disabled={!active?.path}
+          >
+            <Globe className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Toggle diff panel (working tree)"
+            aria-pressed={activePanel === 'diff'}
+            className={cn(activePanel === 'diff' && 'bg-accent text-accent-foreground')}
+            onClick={() => toggleSidePanel('diff')}
+          >
+            <GitCompare className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Toggle git history graph"
+            aria-pressed={activePanel === 'git-graph'}
+            className={cn(activePanel === 'git-graph' && 'bg-accent text-accent-foreground')}
+            onClick={() => toggleSidePanel('git-graph')}
+          >
+            <GitGraph className="size-4" />
+          </Button>
+          <ActivityBarGitMenu />
+        </div>
+        <div className="mt-auto flex flex-col items-center pb-1 pt-2">
+          <Button type="button" variant="ghost" size="icon-sm" title="Settings" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
             <Settings className="size-4" />
           </Button>
         </div>

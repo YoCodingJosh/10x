@@ -6,7 +6,7 @@ import { DiffFileBlock } from '@/features/diff-panel/diff-file-block'
 import { parseUnifiedDiff } from '@/features/diff-panel/parse-unified-diff'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { cn } from '@/lib/utils'
-import { useDiffPanelStore } from '@/stores/diff-panel-store'
+import { useSidePanelStore } from '@/stores/side-panel-store'
 import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { GitCompare, Loader2, RefreshCw, X } from 'lucide-react'
 
@@ -20,7 +20,7 @@ const MODE_LABEL: Record<GitDiffMode, string> = {
 
 export function DiffViewerPanel() {
   const cwd = useGitCwdForVisibleWorkspace()
-  const setOpen = useDiffPanelStore((s) => s.setOpen)
+  const close = useSidePanelStore((s) => s.close)
   const loadState = useGitFocusedCheckoutStore((s) => s.loadState)
   const [mode, setMode] = useState<GitDiffMode>('all')
   const [text, setText] = useState<string | null>(null)
@@ -95,7 +95,7 @@ export function DiffViewerPanel() {
             variant="ghost"
             size="icon-xs"
             title="Close diff panel"
-            onClick={() => setOpen(false)}
+            onClick={close}
           >
             <X className="size-3.5" />
           </Button>

@@ -56,6 +56,42 @@ declare global {
           cwd: string
           mode: 'unstaged' | 'staged' | 'all'
         }) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
+        logGraph: (cwd: string) => Promise<
+          | {
+              ok: true
+              commits: {
+                hash: string
+                parents: string[]
+                subject: string
+                authorName: string
+                dateIso: string
+                refs: string
+              }[]
+            }
+          | { ok: false; error: string }
+        >
+        commitInspect: (args: { cwd: string; hash: string }) => Promise<
+          | {
+              ok: true
+              hash: string
+              shortHash: string
+              subject: string
+              authorName: string
+              dateIso: string
+              files: {
+                path: string
+                status: 'added' | 'modified' | 'deleted' | 'renamed'
+                oldPath?: string
+                additions: number
+                deletions: number
+              }[]
+            }
+          | { ok: false; error: string }
+        >
+        commitDiff: (args: {
+          cwd: string
+          hash: string
+        }) => Promise<{ ok: true; text: string } | { ok: false; error: string }>
       }
       github: {
         deviceStart: () => Promise<

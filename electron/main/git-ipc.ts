@@ -868,6 +868,220 @@ export async function gitDiff(
   return { ok: true, text: r.stdout }
 }
 
+const LOG_LIMIT = 80
+/** Unit separator inside each log record (fields must not contain this char). */
+const US = '\x1f'
+
+export type GitLogCommitRow = {
+  hash: string
+  parents: string[]
+  subject: string
+  authorName: string
+  dateIso: string
+  refs: string
+}
+
+function parseGitLogZ(stdout: string): GitLogCommitRow[] {
+  const rows: GitLogCommitRow[] = []
+  const records = stdout.split('\0').filter((s) => s.length > 0)
+  for (const rec of records) {
+    const parts = rec.split(US)
+    if (parts.length < 6) continue
+    const [hash, parentsRaw, subject, authorName, dateIso, refs] = parts
+    rows.push({
+      hash: hash ?? '',
+      parents: parentsRaw?.trim() ? parentsRaw.trim().split(/ +/) : [],
+      subject: subject ?? '',
+      authorName: authorName ?? '',
+      dateIso: dateIso ?? '',
+      refs: refs ?? '',
+    })
+  }
+  return rows
+}
+
+export async function gitLogGraph(
+  cwd: string,
+): Promise<{ ok: true; commits: GitLogCommitRow[] } | { ok: false; error: string }> {
+  const trimmed = cwd.trim()
+  if (!trimmed) {
+    return { ok: false, error: 'Invalid path.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a Git repository.' }
+  }
+  const pretty = [
+    '%H',
+    US,
+    '%P',
+    US,
+    '%s',
+    US,
+    '%an',
+    US,
+    '%aI',
+    US,
+    '%D',
+  ].join('')
+  const r = await runGit(trimmed, [
+    'log',
+    '-z',
+    `-${LOG_LIMIT}`,
+    '--topo-order',
+    `--pretty=format:${pretty}`,
+  ])
+  if (!r.ok) {
+    return { ok: false, error: r.error }
+  }
+  return { ok: true, commits: parseGitLogZ(r.stdout) }
+}
+
+export type GitCommitFileEntry = {
+  path: string
+  status: 'added' | 'modified' | 'deleted' | 'renamed'
+  oldPath?: string
+  additions: number
+  deletions: number
+}
+
+export async function gitCommitInspect(
+  cwd: string,
+  hash: string,
+): Promise<
+  | {
+      ok: true
+      hash: string
+      shortHash: string
+      subject: string
+      authorName: string
+      dateIso: string
+      files: GitCommitFileEntry[]
+    }
+  | { ok: false; error: string }
+> {
+  const trimmed = cwd.trim()
+  const h = hash.trim()
+  if (!trimmed || !h) {
+    return { ok: false, error: 'Invalid path or commit.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a Git repository.' }
+  }
+
+  const metaR = await runGit(trimmed, ['show', '-s', `--format=%H${US}%h${US}%s${US}%an${US}%aI`, h])
+  if (!metaR.ok) {
+    return { ok: false, error: metaR.error }
+  }
+  const mp = metaR.stdout.split(US)
+  if (mp.length < 5) {
+    return { ok: false, error: 'Could not read commit metadata.' }
+  }
+  const [fullHash, shortHash, subject, authorName, dateIso] = mp
+
+  const nameStat = await runGit(trimmed, ['diff-tree', '--no-commit-id', '--name-status', '-r', h])
+  const numStat = await runGit(trimmed, ['diff-tree', '--no-commit-id', '--numstat', '-r', h])
+  if (!nameStat.ok) {
+    return { ok: false, error: nameStat.error }
+  }
+  if (!numStat.ok) {
+    return { ok: false, error: numStat.error }
+  }
+
+  const pathMeta = new Map<
+    string,
+    { status: GitCommitFileEntry['status']; oldPath?: string }
+  >()
+
+  for (const line of nameStat.stdout.split('\n')) {
+    if (!line.trim()) continue
+    const t = line.split('\t')
+    const code = t[0] ?? ''
+    if (code.startsWith('R')) {
+      const oldP = t[1]
+      const newP = t[2]
+      if (oldP && newP) {
+        pathMeta.set(newP, { status: 'renamed', oldPath: oldP })
+      }
+    } else if (code === 'A' && t[1]) {
+      pathMeta.set(t[1], { status: 'added' })
+    } else if (code === 'M' && t[1]) {
+      pathMeta.set(t[1], { status: 'modified' })
+    } else if (code === 'D' && t[1]) {
+      pathMeta.set(t[1], { status: 'deleted' })
+    }
+  }
+
+  const counts = new Map<string, { additions: number; deletions: number }>()
+  for (const line of numStat.stdout.split('\n')) {
+    if (!line.trim()) continue
+    const t = line.split('\t')
+    if (t.length >= 4 && t[0] === '-' && t[1] === '-') {
+      const newPath = t[t.length - 1]!
+      counts.set(newPath, { additions: 0, deletions: 0 })
+      continue
+    }
+    if (t.length < 3) continue
+    const addRaw = t[0]!
+    const delRaw = t[1]!
+    const path = t.slice(2).join('\t')
+    const additions = addRaw === '-' ? 0 : Number.parseInt(addRaw, 10) || 0
+    const deletions = delRaw === '-' ? 0 : Number.parseInt(delRaw, 10) || 0
+    counts.set(path, { additions, deletions })
+  }
+
+  const files: GitCommitFileEntry[] = []
+  for (const [path, meta] of pathMeta) {
+    const c = counts.get(path) ?? { additions: 0, deletions: 0 }
+    files.push({
+      path,
+      status: meta.status,
+      oldPath: meta.oldPath,
+      additions: c.additions,
+      deletions: c.deletions,
+    })
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path))
+
+  return {
+    ok: true,
+    hash: fullHash ?? h,
+    shortHash: shortHash ?? h.slice(0, 7),
+    subject: subject ?? '',
+    authorName: authorName ?? '',
+    dateIso: dateIso ?? '',
+    files,
+  }
+}
+
+export async function gitCommitDiff(
+  cwd: string,
+  hash: string,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const trimmed = cwd.trim()
+  const h = hash.trim()
+  if (!trimmed || !h) {
+    return { ok: false, error: 'Invalid path or commit.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a Git repository.' }
+  }
+  const r = await runGit(trimmed, [
+    'show',
+    '--no-ext-diff',
+    '--no-color',
+    '--pretty=format:',
+    '-p',
+    h,
+  ])
+  if (!r.ok) {
+    return { ok: false, error: r.error }
+  }
+  return { ok: true, text: r.stdout }
+}
+
 export function registerGitIpc() {
   ipcMain.handle('git:openOriginInBrowser', async (_e: IpcMainInvokeEvent, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd.trim()) {
@@ -1015,6 +1229,39 @@ export function registerGitIpc() {
       const mode: GitDiffMode =
         args.mode === 'staged' || args.mode === 'unstaged' ? args.mode : 'all'
       return gitDiff(args.cwd.trim(), mode)
+    },
+  )
+
+  ipcMain.handle('git:logGraph', async (_e: IpcMainInvokeEvent, rawPath: string) => {
+    if (typeof rawPath !== 'string' || !rawPath.trim()) {
+      return { ok: false, error: 'Invalid path.' }
+    }
+    return gitLogGraph(rawPath.trim())
+  })
+
+  ipcMain.handle(
+    'git:commitInspect',
+    async (_e: IpcMainInvokeEvent, args: { cwd: string; hash: string }) => {
+      if (typeof args?.cwd !== 'string' || !args.cwd.trim()) {
+        return { ok: false, error: 'Invalid path.' }
+      }
+      if (typeof args?.hash !== 'string' || !args.hash.trim()) {
+        return { ok: false, error: 'Invalid commit.' }
+      }
+      return gitCommitInspect(args.cwd.trim(), args.hash.trim())
+    },
+  )
+
+  ipcMain.handle(
+    'git:commitDiff',
+    async (_e: IpcMainInvokeEvent, args: { cwd: string; hash: string }) => {
+      if (typeof args?.cwd !== 'string' || !args.cwd.trim()) {
+        return { ok: false, error: 'Invalid path.' }
+      }
+      if (typeof args?.hash !== 'string' || !args.hash.trim()) {
+        return { ok: false, error: 'Invalid commit.' }
+      }
+      return gitCommitDiff(args.cwd.trim(), args.hash.trim())
     },
   )
 }
