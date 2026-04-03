@@ -1,13 +1,25 @@
 #!/usr/bin/env node
 /**
- * Interactive version bump — arrow keys + enter, commit & tag.
+ * Interactive version bump — arrow keys + enter, release notes, commit & push;
+ * then GitHub Actions tags, publishes the release, and release-build uploads artifacts.
  * Run: npm run bump
+ *
+ * Requires: GitHub CLI (`gh`) with `repo` scope — `gh auth login`
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { cancel, intro, isCancel, log, outro, select } from '@clack/prompts'
+import { fileURLToPath } from 'node:url'
+import {
+  cancel,
+  intro,
+  isCancel,
+  log,
+  outro,
+  select,
+  text,
+} from '@clack/prompts'
 import color from 'picocolors'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -46,6 +58,91 @@ function bumpSemver(version, part) {
     patch += 1
   }
   return `${major}.${minor}.${patch}`
+}
+
+function dispatchPublishWorkflow(branch, version, releaseNotes) {
+  const payload = JSON.stringify({
+    ref: branch,
+    inputs: {
+      version,
+      release_notes: releaseNotes,
+    },
+  })
+  const r = spawnSync(
+    'gh',
+    [
+      'api',
+      '--method',
+      'POST',
+      'repos/{owner}/{repo}/actions/workflows/release-publish.yml/dispatches',
+      '--input',
+      '-',
+    ],
+    {
+      cwd: root,
+      input: payload,
+      encoding: 'utf8',
+    },
+  )
+  if (spawnFailed(r)) {
+    if (r.stderr) process.stderr.write(r.stderr)
+    if (r.stdout) process.stdout.write(r.stdout)
+    log.error(
+      '`gh api` failed — your commit is on the remote; create the tag/release manually if needed.',
+    )
+    process.exit(r.status ?? 1)
+  }
+}
+
+async function collectReleaseNotes() {
+  if (!process.stdin.isTTY) {
+    const notes = await text({
+      message: `${color.bold('Release notes')} ${color.dim('(markdown)')}`,
+      placeholder: 'Summarize this release for users',
+      validate: (v) =>
+        v?.trim() ? undefined : 'Add a short description (or one bullet).',
+    })
+    if (isCancel(notes)) {
+      cancel('Alright, maybe later.')
+      process.exit(0)
+    }
+    return notes.trim()
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), '10x-release-notes-'))
+  const file = join(dir, 'NOTES.md')
+  writeFileSync(
+    file,
+    `## What changed\n\n- \n`,
+    'utf8',
+  )
+  const editor =
+    process.env.EDITOR || (process.platform === 'win32' ? 'notepad' : 'nano')
+  log.step(
+    `${color.dim('Opening')} ${color.cyan(editor)} ${color.dim('— save and close when done')}`,
+  )
+  const ed = spawnSync(editor, [file], { stdio: 'inherit', cwd: root })
+  let body
+  try {
+    body = readFileSync(file, 'utf8')
+  } catch {
+    body = ''
+  }
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* ignore */
+  }
+  if (spawnFailed(ed)) {
+    log.error('Editor exited with an error.')
+    process.exit(ed?.status ?? 1)
+  }
+  const trimmed = body.trim()
+  if (!trimmed) {
+    log.error('Release notes are empty.')
+    process.exit(1)
+  }
+  return body
 }
 
 async function main() {
@@ -94,6 +191,25 @@ async function main() {
     `${color.dim('Next release')}  ${color.strikethrough(color.dim(current))}  ${color.bold(color.cyan('→'))}  ${color.bold(color.cyan(next))}`,
   )
 
+  const releaseNotes = await collectReleaseNotes()
+
+  const ghCheck = spawnSync('gh', ['auth', 'status'], {
+    cwd: root,
+    stdio: 'pipe',
+  })
+  if (ghCheck.error?.code === 'ENOENT') {
+    log.error(
+      'GitHub CLI (`gh`) was not found. Install it from https://cli.github.com and re-run.',
+    )
+    process.exit(1)
+  }
+  if (spawnFailed(ghCheck)) {
+    log.error(
+      '`gh` is not authenticated. Run `gh auth login`, then re-run `pnpm run bump`.',
+    )
+    process.exit(1)
+  }
+
   pkg.version = next
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
 
@@ -106,9 +222,6 @@ async function main() {
   log.step(`git commit — ${color.dim('chore: bump version to ' + next)}…`)
   run('git', ['commit', '-m', `chore: bump version to ${next}`])
 
-  log.step(`git tag ${color.cyan(next)}…`)
-  run('git', ['tag', next])
-
   const branch =
     spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: root,
@@ -117,10 +230,17 @@ async function main() {
 
   log.step(`git push origin ${color.cyan(branch)}…`)
   run('git', ['push', 'origin', branch])
-  log.step(`git push origin ${color.cyan(next)}…`)
-  run('git', ['push', 'origin', next])
 
-  outro(color.green(`Pushed — publish a GitHub Release on ${color.bold(next)} when you want CI builds.`))
+  log.step(
+    `Start ${color.cyan('Publish release')} workflow ${color.dim('(tag + GitHub Release → CI builds)')}…`,
+  )
+  dispatchPublishWorkflow(branch, next, releaseNotes)
+
+  outro(
+    color.green(
+      `Queued — watch Actions: tag ${color.bold(next)} will appear, then release assets build.`,
+    ),
+  )
 }
 
 main().catch((e) => {

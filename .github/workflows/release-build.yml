@@ -1,3 +1,5 @@
+# Triggered when a GitHub Release is published (see release-publish.yml / `pnpm run bump`).
+#
 # Required GitHub Environment secrets (e.g. environment name: "release"):
 #
 #   GH_TOKEN — PAT with repo + releases (or use repo default token for upload only).
