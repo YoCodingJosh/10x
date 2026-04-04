@@ -6,7 +6,7 @@ import { useAgentNotificationStore } from '@/stores/agent-notification-store'
 
 /**
  * Keeps the main process in sync with the active agent tab in the visible workspace so it can skip
- * macOS notifications, dock badge counts, and blue-dot attention for that session.
+ * macOS notifications, dock badge counts, and status-dot attention for that session.
  */
 export function AgentFocusedSessionBridge() {
   const visibleWorkspaceId = useVisibleWorkspaceId()

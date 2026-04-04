@@ -1,6 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { CLAUDE_CODE_INSTALL_URL } from '@/lib/claude-code-install'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
@@ -41,11 +41,22 @@ function ClaudeAgentTerminal({
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
 
+  const sessionId = useMemo(() => sessionKey(workspaceId, tabId), [workspaceId, tabId])
+
+  const labelsRef = useRef({ label, notificationWorkspace, notificationAgent })
+  labelsRef.current = { label, notificationWorkspace, notificationAgent }
+
+  useEffect(() => {
+    window.mux.agent.updateSessionLabels(sessionId, {
+      label,
+      notificationWorkspace,
+      notificationAgent,
+    })
+  }, [sessionId, label, notificationWorkspace, notificationAgent])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
-    const sessionId = sessionKey(workspaceId, tabId)
     tearingDownRef.current = false
     setBootError(null)
 
@@ -109,6 +120,13 @@ function ClaudeAgentTerminal({
         return
       }
 
+      const latest = labelsRef.current
+      window.mux.agent.updateSessionLabels(sessionId, {
+        label: latest.label,
+        notificationWorkspace: latest.notificationWorkspace,
+        notificationAgent: latest.notificationAgent,
+      })
+
       unsubData = window.mux.pty.onData((payload) => {
         if (payload.sessionId !== sessionId) return
         term.write(payload.data)
@@ -140,7 +158,9 @@ function ClaudeAgentTerminal({
       term.dispose()
       container.replaceChildren()
     }
-  }, [workspaceId, tabId, cwd, label, notificationWorkspace, notificationAgent])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `label` / notification fields are pushed
+    // via `updateSessionLabels`; including them here would kill the PTY on every rename.
+  }, [workspaceId, tabId, cwd])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">

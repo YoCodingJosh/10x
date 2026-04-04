@@ -21,7 +21,8 @@ import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import {
-  tabNeedsAttention,
+  agentAttentionDotClass,
+  tabAttentionIndicator,
   useAgentNotificationStore,
 } from '@/stores/agent-notification-store'
 import { cn } from '@/lib/utils'
@@ -361,7 +362,14 @@ export function AgentSessionsPanel() {
               variant="line"
               className="h-8 max-h-8 min-h-8 min-w-0 flex-1 flex-nowrap items-center justify-start overflow-x-auto overflow-y-hidden rounded-none bg-transparent p-0"
             >
-              {tabs.map((tab) => (
+              {tabs.map((tab) => {
+                const tabInd = tabAttentionIndicator(
+                  workspaceId,
+                  tab.id,
+                  attention,
+                  focusedAgentSessionId,
+                )
+                return (
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
@@ -370,8 +378,13 @@ export function AgentSessionsPanel() {
                 >
                   <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
                     <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
-                      {tabNeedsAttention(workspaceId, tab.id, attention, focusedAgentSessionId) && (
-                        <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+                      {tabInd !== 'none' && (
+                        <span
+                          className={cn(
+                            'size-1.5 shrink-0 rounded-full',
+                            agentAttentionDotClass[tabInd],
+                          )}
+                        />
                       )}
                       <EditableAgentTabLabel tabId={tab.id} />
                     </span>
@@ -392,7 +405,8 @@ export function AgentSessionsPanel() {
                     </Button>
                   </div>
                 </TabsTrigger>
-              ))}
+                )
+              })}
             </TabsList>
             {repoKind === 'git' && workspace?.path ? (
               <DropdownMenu>

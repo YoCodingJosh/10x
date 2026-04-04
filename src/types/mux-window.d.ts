@@ -148,6 +148,11 @@ declare global {
         setFocusedSession: (sessionId: string | null) => void
         /** macOS: user clicked a system notification — navigate to that agent session. */
         onNavigateToSession: (handler: (payload: { sessionId: string }) => void) => () => void
+        /** Keep notification / metadata in sync when the tab or workspace label changes (no PTY restart). */
+        updateSessionLabels: (
+          sessionId: string,
+          meta: { label: string; notificationWorkspace: string; notificationAgent: string },
+        ) => void
       }
       pty: {
         create: (opts: {

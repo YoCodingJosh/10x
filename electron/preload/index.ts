@@ -240,6 +240,10 @@ const api = {
       ipcRenderer.send('agent:dismiss-attention', sessionId),
     setFocusedSession: (sessionId: string | null): void =>
       ipcRenderer.send('agent:set-focused-session', sessionId),
+    updateSessionLabels: (
+      sessionId: string,
+      meta: { label: string; notificationWorkspace: string; notificationAgent: string },
+    ): void => ipcRenderer.send('agent:update-session-labels', sessionId, meta),
     onNavigateToSession: (
       handler: (payload: { sessionId: string }) => void,
     ): (() => void) => {

@@ -222,6 +222,22 @@ export type RegisterAgentSessionLabels = {
   notificationAgent?: string
 }
 
+/** Update display names for notifications without recreating the PTY (e.g. tab rename). */
+export function updateAgentSessionLabels(
+  sessionId: string,
+  meta: {
+    label: string
+    notificationWorkspace: string
+    notificationAgent: string
+  },
+): void {
+  const session = agentSessions.get(sessionId)
+  if (!session) return
+  session.label = meta.label
+  session.workspaceLabel = meta.notificationWorkspace.trim()
+  session.agentLabel = meta.notificationAgent.trim()
+}
+
 /** Call once per PTY session created (claude kind only). */
 export function registerAgentSession(sessionId: string, meta: RegisterAgentSessionLabels): void {
   const existing = agentSessions.get(sessionId)
@@ -317,5 +333,23 @@ export function registerAgentAttentionIpc(): void {
     }
     if (typeof sessionId !== 'string') return
     setFocusedAgentSession(sessionId)
+  })
+
+  ipcMain.on('agent:update-session-labels', (_event, sessionId: unknown, meta: unknown) => {
+    if (typeof sessionId !== 'string') return
+    if (meta == null || typeof meta !== 'object') return
+    const m = meta as Record<string, unknown>
+    if (
+      typeof m.label !== 'string' ||
+      typeof m.notificationWorkspace !== 'string' ||
+      typeof m.notificationAgent !== 'string'
+    ) {
+      return
+    }
+    updateAgentSessionLabels(sessionId, {
+      label: m.label,
+      notificationWorkspace: m.notificationWorkspace,
+      notificationAgent: m.notificationAgent,
+    })
   })
 }

@@ -1,20 +1,27 @@
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useState } from 'react'
+import { FolderOpen, Trash2, X } from 'lucide-react'
+
+import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import {
   usePersistWorkspacesMutation,
   useWorkspacesQuery,
 } from '@/features/workspaces/hooks/use-workspaces'
 import { navigateToAgentSession } from '@/features/shell/navigate-to-agent-session'
-import {
-  firstAttentionSessionIdInWorkspace,
-  tabNeedsAttention,
-  useAgentNotificationStore,
-  workspaceNeedsAttention,
-} from '@/stores/agent-notification-store'
-import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { FolderOpen, Trash2 } from 'lucide-react'
+import {
+  agentAttentionDotClass,
+  firstAttentionSessionIdInWorkspace,
+  tabAttentionIndicator,
+  useAgentNotificationStore,
+  workspaceAttentionIndicator,
+} from '@/stores/agent-notification-store'
+import type { AgentTab } from '@/stores/agent-tabs-store'
+import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { refreshFocusedCheckoutGit } from '@/stores/git-focused-checkout-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 export function WorkspacesRailList() {
   const { isPending, isError, error } = useWorkspacesQuery()
@@ -25,6 +32,29 @@ export function WorkspacesRailList() {
   const attention = useAgentNotificationStore((s) => s.attention)
   const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
   const byWorkspaceId = useAgentTabsStore((s) => s.byWorkspaceId)
+  const closeTab = useAgentTabsStore((s) => s.closeTab)
+
+  const [closeWorktreeConfirm, setCloseWorktreeConfirm] = useState<{
+    workspaceId: string
+    tabId: string
+    agentPath: string
+    label: string
+  } | null>(null)
+  /** `workspaceId:tabId` — show close control when pointer is over this agent row. */
+  const [hoveredAgentSessionId, setHoveredAgentSessionId] = useState<string | null>(null)
+
+  function requestCloseAgentTab(workspaceId: string, tab: AgentTab) {
+    if (!tab.agentPath) {
+      closeTab(workspaceId, tab.id)
+      return
+    }
+    setCloseWorktreeConfirm({
+      workspaceId,
+      tabId: tab.id,
+      agentPath: tab.agentPath,
+      label: tab.label,
+    })
+  }
 
   function activateWorkspace(wId: string) {
     const attentionSid = firstAttentionSessionIdInWorkspace(wId, attention)
@@ -52,7 +82,31 @@ export function WorkspacesRailList() {
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1">
+    <>
+      <CloseAgentWorktreeDialog
+        open={closeWorktreeConfirm !== null}
+        onOpenChange={(o) => {
+          if (!o) setCloseWorktreeConfirm(null)
+        }}
+        agentLabel={closeWorktreeConfirm?.label ?? ''}
+        worktreePath={closeWorktreeConfirm?.agentPath ?? ''}
+        onConfirmRemove={async () => {
+          const ctx = closeWorktreeConfirm
+          if (!ctx) return { ok: false as const, error: 'Nothing to close.' }
+          return runWithStatusActivity(
+            { domain: 'git', label: 'Removing worktree', detail: ctx.agentPath },
+            async () => {
+              const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
+              if (r.ok) {
+                closeTab(ctx.workspaceId, ctx.tabId)
+                void refreshFocusedCheckoutGit()
+              }
+              return r
+            },
+          )
+        }}
+      />
+      <ScrollArea className="min-h-0 flex-1">
       <div className="p-1">
         {isPending && (
           <p className="px-2 py-3 text-xs text-muted-foreground">Loading…</p>
@@ -71,6 +125,11 @@ export function WorkspacesRailList() {
           const bucket = byWorkspaceId[w.id]
           const tabs = bucket?.tabs ?? []
           const activeTabId = bucket?.activeTabId ?? null
+          const workspaceInd = workspaceAttentionIndicator(
+            w.id,
+            attention,
+            focusedAgentSessionId,
+          )
 
           return (
             <div
@@ -88,8 +147,14 @@ export function WorkspacesRailList() {
                 >
                   <FolderOpen className="size-3.5 shrink-0 opacity-70" />
                   <span className="min-w-0 flex-1 truncate">{w.label}</span>
-                  {workspaceNeedsAttention(w.id, attention, focusedAgentSessionId) && (
-                    <span className="size-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden />
+                  {workspaceInd !== 'none' && (
+                    <span
+                      className={cn(
+                        'size-1.5 shrink-0 rounded-full',
+                        agentAttentionDotClass[workspaceInd],
+                      )}
+                      aria-hidden
+                    />
                   )}
                 </button>
                 <Button
@@ -114,31 +179,61 @@ export function WorkspacesRailList() {
                     const sessionId = `${w.id}:${tab.id}`
                     const isActiveAgent =
                       w.id === activeWorkspaceId && tab.id === activeTabId
+                    const tabInd = tabAttentionIndicator(
+                      w.id,
+                      tab.id,
+                      attention,
+                      focusedAgentSessionId,
+                    )
                     return (
-                      <li key={tab.id}>
-                        <button
-                          type="button"
+                      <li
+                        key={tab.id}
+                        onMouseEnter={() => setHoveredAgentSessionId(sessionId)}
+                        onMouseLeave={() => setHoveredAgentSessionId(null)}
+                      >
+                        <div
                           className={cn(
-                            'flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left text-xs',
+                            'flex min-h-7 min-w-0 items-stretch rounded-sm text-xs transition-colors',
                             isActiveAgent
                               ? 'bg-background/80 font-medium text-foreground'
                               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                           )}
-                          onClick={() => navigateToAgentSession(sessionId)}
                         >
-                          <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                          {tabNeedsAttention(
-                            w.id,
-                            tab.id,
-                            attention,
-                            focusedAgentSessionId,
-                          ) && (
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-blue-500"
-                              aria-hidden
-                            />
-                          )}
-                        </button>
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+                            onClick={() => navigateToAgentSession(sessionId)}
+                          >
+                            <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                            {tabInd !== 'none' && (
+                              <span
+                                className={cn(
+                                  'size-1.5 shrink-0 rounded-full',
+                                  agentAttentionDotClass[tabInd],
+                                )}
+                                aria-hidden
+                              />
+                            )}
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Close agent tab"
+                            className={cn(
+                              'h-7 w-6 shrink-0 rounded-none rounded-r-sm px-0 text-muted-foreground hover:bg-destructive/15 hover:text-destructive',
+                              hoveredAgentSessionId === sessionId
+                                ? 'opacity-100'
+                                : 'pointer-events-none opacity-0',
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              requestCloseAgentTab(w.id, tab)
+                            }}
+                          >
+                            <X className="size-3" />
+                          </Button>
+                        </div>
                       </li>
                     )
                   })}
@@ -149,5 +244,6 @@ export function WorkspacesRailList() {
         })}
       </div>
     </ScrollArea>
+    </>
   )
 }
