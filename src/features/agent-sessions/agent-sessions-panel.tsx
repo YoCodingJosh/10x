@@ -58,7 +58,7 @@ export function AgentSessionsPanel() {
   const clearCloseIntent = useAgentTabCloseIntentStore((s) => s.clearIntent)
 
   const attention = useAgentNotificationStore((s) => s.attention)
-  const clearAttention = useAgentNotificationStore((s) => s._clearAttention)
+  const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
 
   const [worktreeOpen, setWorktreeOpen] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -163,14 +163,6 @@ export function AgentSessionsPanel() {
       setActiveTab(workspaceId, resolvedTabId)
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
-
-  // Clear attention dot when the user is looking at a tab; keep dock badge in sync with main process
-  useEffect(() => {
-    if (!isVisiblePanel || resolvedTabId == null) return
-    const sid = `${workspaceId}:${resolvedTabId}`
-    clearAttention(sid)
-    window.mux.agent.dismissAttention(sid)
-  }, [isVisiblePanel, workspaceId, resolvedTabId, clearAttention])
 
   function requestCloseTab(tab: AgentTab) {
     if (!tab.agentPath) {
@@ -378,7 +370,7 @@ export function AgentSessionsPanel() {
                 >
                   <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
                     <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
-                      {tabNeedsAttention(workspaceId, tab.id, attention) && (
+                      {tabNeedsAttention(workspaceId, tab.id, attention, focusedAgentSessionId) && (
                         <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
                       )}
                       <EditableAgentTabLabel tabId={tab.id} />

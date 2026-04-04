@@ -2,10 +2,11 @@ import { useLayoutEffect, useMemo } from 'react'
 
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useAgentNotificationStore } from '@/stores/agent-notification-store'
 
 /**
- * Keeps the main process in sync with the agent tab the user is actually viewing so it can skip
- * macOS notifications when that session becomes idle or needs input.
+ * Keeps the main process in sync with the active agent tab in the visible workspace so it can skip
+ * macOS notifications, dock badge counts, and blue-dot attention for that session.
  */
 export function AgentFocusedSessionBridge() {
   const visibleWorkspaceId = useVisibleWorkspaceId()
@@ -24,6 +25,7 @@ export function AgentFocusedSessionBridge() {
   }, [visibleWorkspaceId, bucket?.tabs, bucket?.activeTabId])
 
   useLayoutEffect(() => {
+    useAgentNotificationStore.getState().setFocusedAgentSessionId(sessionId)
     window.mux.agent.setFocusedSession(sessionId)
   }, [sessionId])
 

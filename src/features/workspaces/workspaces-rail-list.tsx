@@ -19,6 +19,7 @@ export function WorkspacesRailList() {
   const setActiveWorkspaceId = useWorkspaceStore((s) => s.setActiveWorkspaceId)
   const persist = usePersistWorkspacesMutation()
   const attention = useAgentNotificationStore((s) => s.attention)
+  const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
 
   async function removeWorkspace(id: string) {
     const next = workspaces.filter((w) => w.id !== id)
@@ -59,7 +60,7 @@ export function WorkspacesRailList() {
             >
               <FolderOpen className="size-3.5 shrink-0 opacity-70" />
               <span className="min-w-0 flex-1 truncate">{w.label}</span>
-              {workspaceNeedsAttention(w.id, attention) && (
+              {workspaceNeedsAttention(w.id, attention, focusedAgentSessionId) && (
                 <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
               )}
             </button>

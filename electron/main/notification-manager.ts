@@ -2,10 +2,25 @@ import { BrowserWindow, Notification, app, ipcMain } from 'electron'
 
 // ─── IPC broadcast ────────────────────────────────────────────────────────────
 
-function broadcastAgentState(sessionId: string, state: AgentState): void {
+function broadcastAgentState(sessionId: string, session: SessionInfo | null): void {
+  if (session == null) {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('agent:state-change', {
+          sessionId,
+          state: 'running' satisfies AgentState,
+          needsAttention: false,
+        })
+      }
+    }
+    return
+  }
+  const { state } = session
+  const needsAttention =
+    (state === 'idle' || state === 'needs-input') && !session.attentionDismissed
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
-      win.webContents.send('agent:state-change', { sessionId, state })
+      win.webContents.send('agent:state-change', { sessionId, state, needsAttention })
     }
   }
 }
@@ -88,8 +103,10 @@ interface SessionInfo {
   /** Suppress "complete" notifications until the user has actually sent input */
   hasReceivedInput: boolean
   /**
-   * User has focused this agent tab in the UI (renderer cleared the blue dot). Dock badge should
-   * not count this session until a new idle/needs-input transition occurs.
+   * When true, idle/needs-input does not count for badge, notifications, or needsAttention IPC.
+   * Set when the user is viewing that tab as it becomes idle/needs-input, when they switch to it
+   * while it already needs attention, or via dismissAgentAttention. Stays true when switching to
+   * another tab so a completion seen while focused does not re-surface as a dot later.
    */
   attentionDismissed: boolean
 }
@@ -103,7 +120,31 @@ const agentSessions = new Map<string, SessionInfo>()
 let focusedAgentSessionId: string | null = null
 
 function setFocusedAgentSession(sessionId: string | null): void {
-  focusedAgentSessionId = sessionId != null && sessionId.length > 0 ? sessionId : null
+  const next = sessionId != null && sessionId.length > 0 ? sessionId : null
+  const prev = focusedAgentSessionId
+  if (prev === next) return
+  focusedAgentSessionId = next
+
+  // Do not clear attentionDismissed on the tab we leave. If it went idle/needs-input while
+  // focused, it stays dismissed — the user already saw it; switching away must not resurrect a dot.
+  if (prev != null) {
+    const s = agentSessions.get(prev)
+    if (s != null) {
+      broadcastAgentState(prev, s)
+    }
+  }
+
+  if (next != null) {
+    const s = agentSessions.get(next)
+    if (s != null && (s.state === 'idle' || s.state === 'needs-input')) {
+      s.attentionDismissed = true
+    }
+    if (s != null) {
+      broadcastAgentState(next, s)
+    }
+  }
+
+  updateBadge()
 }
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
@@ -111,8 +152,9 @@ function setFocusedAgentSession(sessionId: string | null): void {
 function updateBadge(): void {
   if (process.platform !== 'darwin') return
   let count = 0
-  for (const s of agentSessions.values()) {
+  for (const [id, s] of agentSessions) {
     if (
+      id !== focusedAgentSessionId &&
       (s.state === 'idle' || s.state === 'needs-input') &&
       !s.attentionDismissed
     ) {
@@ -152,10 +194,10 @@ function transitionState(sessionId: string, session: SessionInfo, next: AgentSta
   if (session.state === next) return
   session.state = next
   if (next === 'idle' || next === 'needs-input') {
-    session.attentionDismissed = false
+    session.attentionDismissed = sessionId === focusedAgentSessionId
   }
   updateBadge()
-  broadcastAgentState(sessionId, next)
+  broadcastAgentState(sessionId, session)
   const isForegroundAgent = sessionId === focusedAgentSessionId
   if (next === 'idle' && !isForegroundAgent) fireNotification(session, 'complete')
   if (next === 'needs-input' && !isForegroundAgent) fireNotification(session, 'needs-input')
@@ -187,7 +229,10 @@ export function registerAgentSession(sessionId: string, meta: RegisterAgentSessi
     hasReceivedInput: false,
     attentionDismissed: false,
   })
-  broadcastAgentState(sessionId, 'running')
+  const created = agentSessions.get(sessionId)
+  if (created) {
+    broadcastAgentState(sessionId, created)
+  }
 }
 
 /** Feed raw PTY output into the detector. */
@@ -227,7 +272,7 @@ export function onAgentInput(sessionId: string): void {
     info.state = 'running'
     info.buffer = ''
     updateBadge()
-    broadcastAgentState(sessionId, 'running')
+    broadcastAgentState(sessionId, info)
   }
 }
 
@@ -237,7 +282,7 @@ export function cleanupAgentSession(sessionId: string): void {
   if (info != null && info.debounceTimer !== null) clearTimeout(info.debounceTimer)
   agentSessions.delete(sessionId)
   updateBadge()
-  broadcastAgentState(sessionId, 'running')
+  broadcastAgentState(sessionId, null)
 }
 
 /** Renderer: user focused this agent tab — match dock badge to cleared blue dots. */
@@ -247,6 +292,7 @@ export function dismissAgentAttention(sessionId: string): void {
   if (info.state !== 'idle' && info.state !== 'needs-input') return
   info.attentionDismissed = true
   updateBadge()
+  broadcastAgentState(sessionId, info)
 }
 
 /** IPC: sync badge when the user views an agent tab (see dismissAgentAttention). */
