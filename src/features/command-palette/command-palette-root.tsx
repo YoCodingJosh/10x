@@ -4,7 +4,8 @@ import { CommandPaletteDialog } from './command-palette-dialog'
 import { useCommandPaletteActions } from './use-command-palette-actions'
 
 /**
- * Global command palette (⌘K / Ctrl+K). Mount once under the app shell.
+ * Global command palette — quick switcher + commands (⌘K / Ctrl+K or ⌘P / Ctrl+P).
+ * Mount once under the app shell.
  */
 export function CommandPaletteRoot() {
   const [open, setOpen] = useState(false)
@@ -23,7 +24,8 @@ export function CommandPaletteRoot() {
         t instanceof HTMLSelectElement ||
         (t instanceof HTMLElement && t.isContentEditable)
       if (inField && !open) return
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      const k = e.key.toLowerCase()
+      if ((e.metaKey || e.ctrlKey) && (k === 'k' || k === 'p')) {
         e.preventDefault()
         toggle()
       }

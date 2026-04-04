@@ -44,9 +44,13 @@ export function KeyboardShortcutsSettingsPanel(_props: SettingsPanelProps) {
                 <Kbd>{mod}</Kbd>
                 <span className="text-muted-foreground">+</span>
                 <Kbd>K</Kbd>
+                <span className="text-muted-foreground"> or </span>
+                <Kbd>{mod}</Kbd>
+                <span className="text-muted-foreground">+</span>
+                <Kbd>P</Kbd>
               </>
             }
-            detail="Open the command palette."
+            detail="Open the command palette: jump to a workspace or agent tab, open a recent folder, or run commands."
           />
         </div>
       </section>

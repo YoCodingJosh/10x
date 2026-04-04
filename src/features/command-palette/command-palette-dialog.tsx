@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import type { CommandPaletteItem } from './command-palette-types'
 
 const SECTION_LABEL: Record<CommandPaletteItem['section'], string> = {
+  go: 'Go to',
   shell: 'Shell',
   workspace: 'Workspace',
   agent: 'Agent',
@@ -39,7 +40,7 @@ export function CommandPaletteDialog({ open, onOpenChange, items, onSelect }: Pr
   }, [items, query])
 
   const grouped = useMemo(() => {
-    const order: CommandPaletteItem['section'][] = ['shell', 'workspace', 'agent', 'git']
+    const order: CommandPaletteItem['section'][] = ['go', 'shell', 'workspace', 'agent', 'git']
     const map = new Map<CommandPaletteItem['section'], CommandPaletteItem[]>()
     for (const it of filtered) {
       const list = map.get(it.section) ?? []
@@ -108,7 +109,7 @@ export function CommandPaletteDialog({ open, onOpenChange, items, onSelect }: Pr
         <input
           ref={inputRef}
           type="text"
-          placeholder="Type a command…"
+          placeholder="Search workspaces, agents, folders, commands…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {

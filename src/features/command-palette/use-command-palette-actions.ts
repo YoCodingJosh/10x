@@ -5,6 +5,8 @@ import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-vis
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { usePersistWorkspacesMutation } from '@/features/workspaces/hooks/use-workspaces'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
+import { navigateToAgentSession } from '@/features/shell/navigate-to-agent-session'
+import { readRecentWorkspacePaths, touchRecentWorkspacePath } from '@/lib/recent-workspace-paths'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
@@ -35,6 +37,7 @@ export function useCommandPaletteActions(): {
   const wtCwd = useGitFocusedCheckoutStore((s) => s.wtCwd)
   const muxFollowUp = useGitFocusedCheckoutStore((s) => s.muxWorktreeFollowUp)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const byWorkspaceId = useAgentTabsStore((s) => s.byWorkspaceId)
   const persist = usePersistWorkspacesMutation()
   const requestCommit = useCommandPaletteIntentsStore((s) => s.requestCommitDialog)
   const requestPublish = useCommandPaletteIntentsStore((s) => s.requestPublishDialog)
@@ -48,7 +51,49 @@ export function useCommandPaletteActions(): {
     cwd && wtCwd && normalizeGitCwdKey(cwd) === normalizeGitCwdKey(wtCwd) ? wt : null
 
   const items = useMemo((): CommandPaletteItem[] => {
+    const go: CommandPaletteItem[] = []
+
+    const sortedWs = [...workspaces].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+    )
+    for (const w of sortedWs) {
+      go.push({
+        id: `go:ws:${w.id}`,
+        section: 'go',
+        label: `Workspace: ${w.label}`,
+        keywords: `${w.path} folder project root`,
+      })
+    }
+
+    for (const w of sortedWs) {
+      const tabs = byWorkspaceId[w.id]?.tabs ?? []
+      for (const t of tabs) {
+        go.push({
+          id: `go:agent:${encodeURIComponent(`${w.id}:${t.id}`)}`,
+          section: 'go',
+          label: `Agent: ${t.label} (${w.label})`,
+          keywords: `${t.label} ${w.label} ${w.path} ${t.agentPath ?? ''} tab session`,
+        })
+      }
+    }
+
+    const knownPathKeys = new Set(
+      workspaces.map((w) => normalizeGitCwdKey(w.path)).filter((k): k is string => k != null),
+    )
+    for (const p of readRecentWorkspacePaths()) {
+      const k = normalizeGitCwdKey(p)
+      if (k == null || knownPathKeys.has(k)) continue
+      knownPathKeys.add(k)
+      go.push({
+        id: `go:recent:${encodeURIComponent(p)}`,
+        section: 'go',
+        label: `Recent folder: ${workspaceLabelFromPath(p)}`,
+        keywords: `${p} path open add`,
+      })
+    }
+
     const out: CommandPaletteItem[] = [
+      ...go,
       {
         id: 'shell.cursor',
         section: 'shell',
@@ -161,10 +206,52 @@ export function useCommandPaletteActions(): {
     }
 
     return out
-  }, [cwd, fileManagerLabel, wtAligned, muxFollowUp, visibleWorkspaceId, claudeInstalled])
+  }, [
+    byWorkspaceId,
+    cwd,
+    fileManagerLabel,
+    wtAligned,
+    muxFollowUp,
+    visibleWorkspaceId,
+    claudeInstalled,
+    workspaces,
+  ])
 
   const run = useCallback(
     async (id: string) => {
+      if (id.startsWith('go:ws:')) {
+        const wId = id.slice('go:ws:'.length)
+        if (workspaces.some((w) => w.id === wId)) {
+          useWorkspaceStore.getState().setActiveWorkspaceId(wId)
+        }
+        return
+      }
+      if (id.startsWith('go:agent:')) {
+        const sessionId = decodeURIComponent(id.slice('go:agent:'.length))
+        navigateToAgentSession(sessionId)
+        return
+      }
+      if (id.startsWith('go:recent:')) {
+        const path = decodeURIComponent(id.slice('go:recent:'.length))
+        const norm = normalizeGitCwdKey(path)
+        const existing =
+          norm == null ? undefined : workspaces.find((w) => normalizeGitCwdKey(w.path) === norm)
+        if (existing) {
+          useWorkspaceStore.getState().setActiveWorkspaceId(existing.id)
+        } else {
+          const row = {
+            id: crypto.randomUUID(),
+            path,
+            label: workspaceLabelFromPath(path),
+          }
+          const next = [...workspaces, row]
+          await persist.mutateAsync(next)
+          useWorkspaceStore.getState().setActiveWorkspaceId(row.id)
+        }
+        touchRecentWorkspacePath(path)
+        return
+      }
+
       switch (id) {
         case 'shell.cursor': {
           if (!cwd) {
@@ -198,6 +285,7 @@ export function useCommandPaletteActions(): {
         case 'workspace.add': {
           const dir = await window.mux.dialog.pickWorkspace()
           if (!dir) return
+          touchRecentWorkspacePath(dir)
           const next = [
             ...workspaces,
             {
