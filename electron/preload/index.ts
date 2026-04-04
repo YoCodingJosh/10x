@@ -160,6 +160,8 @@ const api = {
   git: {
     openOriginInBrowser: (cwd: string): Promise<GitOpenOriginResult> =>
       ipcRenderer.invoke('git:openOriginInBrowser', cwd),
+    openCommitOnGithub: (args: { cwd: string; hash: string }): Promise<GitOpenOriginResult> =>
+      ipcRenderer.invoke('git:openCommitOnGithub', args),
     classify: (cwd: string): Promise<GitClassifyResult> =>
       ipcRenderer.invoke('git:classify', cwd),
     remoteOriginStatus: (cwd: string): Promise<GitRemoteOriginStatus> =>

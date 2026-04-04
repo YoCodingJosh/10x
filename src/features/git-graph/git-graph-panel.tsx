@@ -339,6 +339,7 @@ export function GitGraphPanel() {
                   loading={inspectLoading}
                   error={inspectError}
                   data={inspect}
+                  repoCwd={cwd}
                 />
               )}
             </div>
@@ -378,7 +379,7 @@ export function GitGraphPanel() {
                 <p className="text-sm text-muted-foreground">No file changes in this commit.</p>
               )}
               {diffFiles.map((f, i) => (
-                <DiffFileBlock key={`${f.path}-${i}`} file={f} />
+                <DiffFileBlock key={`${f.path}-${i}`} file={f} fileIndex={i} />
               ))}
             </div>
           </ScrollArea>

@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { Check, Copy, Loader2 } from 'lucide-react'
+import { Check, Copy, ExternalLink, Loader2 } from 'lucide-react'
 
 export type CommitInspectData = {
   hash: string
@@ -60,14 +60,22 @@ type Props = {
   loading: boolean
   error: string | null
   data: CommitInspectData | null
+  /** Repo working tree path (for resolving `origin` and opening GitHub). */
+  repoCwd?: string | null
 }
 
 /**
  * Commit summary layout inspired by AI Elements Commit
  * (https://elements.ai-sdk.dev/components/commit) — hash, author, files, stats.
  */
-export function CommitInspector({ loading, error, data }: Props) {
+export function CommitInspector({ loading, error, data, repoCwd }: Props) {
   const [copied, setCopied] = useState(false)
+
+  const openOnGithub = useCallback(async () => {
+    if (!data?.hash || !repoCwd?.trim()) return
+    const r = await window.mux.git.openCommitOnGithub({ cwd: repoCwd.trim(), hash: data.hash })
+    if (!r.ok) window.alert(r.error)
+  }, [data?.hash, repoCwd])
 
   const copyHash = useCallback(async () => {
     if (!data?.hash) return
@@ -129,6 +137,18 @@ export function CommitInspector({ loading, error, data }: Props) {
                 <Copy className="size-3.5" aria-hidden />
               )}
             </Button>
+            {repoCwd?.trim() ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="size-6"
+                title="Open commit on GitHub"
+                onClick={() => void openOnGithub()}
+              >
+                <ExternalLink className="size-3.5" aria-hidden />
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

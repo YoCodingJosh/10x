@@ -27,6 +27,10 @@ declare global {
       }
       git: {
         openOriginInBrowser: (cwd: string) => Promise<{ ok: true } | { ok: false; error: string }>
+        openCommitOnGithub: (args: {
+          cwd: string
+          hash: string
+        }) => Promise<{ ok: true } | { ok: false; error: string }>
         classify: (cwd: string) => Promise<{ isRepo: false } | { isRepo: true; toplevel: string; commonDir: string }>
         remoteOriginStatus: (cwd: string) => Promise<{ isRepo: false } | { isRepo: true; hasOrigin: boolean }>
         createWorktree: (args: {

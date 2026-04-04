@@ -11,6 +11,16 @@ import { useSidePanelStore } from '@/stores/side-panel-store'
 import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { GitCompare, Loader2, RefreshCw, X } from 'lucide-react'
 
+function countDiffLines(file: { lines: { kind: string }[] }): { add: number; remove: number } {
+  let add = 0
+  let remove = 0
+  for (const l of file.lines) {
+    if (l.kind === 'add') add++
+    else if (l.kind === 'remove') remove++
+  }
+  return { add, remove }
+}
+
 export type GitDiffMode = 'unstaged' | 'staged' | 'all'
 
 const MODE_LABEL: Record<GitDiffMode, string> = {
@@ -68,6 +78,23 @@ export function DiffViewerPanel() {
     if (text == null || text === '') return []
     return parseUnifiedDiff(text)
   }, [text])
+
+  const fileStrip = useMemo(
+    () =>
+      files.map((f, i) => {
+        const { add, remove } = countDiffLines(f)
+        const base = f.path.replace(/^.*\//, '') || f.path
+        return { index: i, path: f.path, short: base, add, remove }
+      }),
+    [files],
+  )
+
+  const scrollToFile = useCallback((index: number) => {
+    document.getElementById(`mux-diff-file-${index}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [])
 
   const emptyMessage =
     !loading && !error && !infoMessage && files.length === 0
@@ -132,6 +159,35 @@ export function DiffViewerPanel() {
         ))}
       </div>
 
+      {files.length > 1 && (
+        <div className="shrink-0 border-b border-border/60 px-2 py-1.5">
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Files ({files.length})
+          </p>
+          <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+            {fileStrip.map((f) => (
+              <Button
+                key={f.index}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 max-w-44 gap-1 px-1.5 text-[11px] font-normal"
+                title={f.path}
+                onClick={() => scrollToFile(f.index)}
+              >
+                <span className="min-w-0 truncate">{f.short}</span>
+                <span className="shrink-0 font-mono text-emerald-600 dark:text-emerald-400">
+                  +{f.add}
+                </span>
+                <span className="shrink-0 font-mono text-rose-600 dark:text-rose-400">
+                  −{f.remove}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-2 pb-4">
           {!cwd && (
@@ -150,7 +206,7 @@ export function DiffViewerPanel() {
             <p className="text-sm text-muted-foreground">{emptyMessage}</p>
           )}
           {files.map((f, i) => (
-            <DiffFileBlock key={`${f.path}-${i}`} file={f} />
+            <DiffFileBlock key={`${f.path}-${i}`} file={f} fileIndex={i} />
           ))}
         </div>
       </ScrollArea>

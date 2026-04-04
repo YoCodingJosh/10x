@@ -108,6 +108,61 @@ export function gitRemoteUrlToHttpsUrl(remote: string): string | null {
 
 export type OpenGitOriginResult = { ok: true } | { ok: false; error: string }
 
+/**
+ * Open `https://github.com/{owner}/{repo}/commit/{sha}` when `origin` resolves to github.com.
+ */
+export async function openGithubCommitInBrowser(
+  cwd: string,
+  commitSha: string,
+): Promise<OpenGitOriginResult> {
+  const trimmed = cwd.trim()
+  const sha = commitSha.trim()
+  if (!trimmed) {
+    return { ok: false, error: 'Invalid path.' }
+  }
+  if (!sha || !/^[a-f0-9]+$/i.test(sha)) {
+    return { ok: false, error: 'Invalid commit hash.' }
+  }
+  if (!existsSync(trimmed)) {
+    return { ok: false, error: 'Path does not exist.' }
+  }
+  const classified = await gitClassify(trimmed)
+  if (!classified.isRepo) {
+    return { ok: false, error: 'Not a git repository.' }
+  }
+  const toplevel = classified.toplevel
+  const remote = await runGit(toplevel, ['remote', 'get-url', 'origin'])
+  if (!remote.ok || !remote.stdout) {
+    return { ok: false, error: 'No remote named origin.' }
+  }
+  const webUrl = gitRemoteUrlToHttpsUrl(remote.stdout)
+  if (!webUrl) {
+    return { ok: false, error: 'Could not turn this remote into a web URL.' }
+  }
+  const parsed = parseGithubOwnerRepoFromWebUrl(webUrl)
+  if (!parsed) {
+    return {
+      ok: false,
+      error: 'Opening commits in the browser is only supported for GitHub (github.com) remotes.',
+    }
+  }
+  const commitUrl = `https://github.com/${parsed.owner}/${parsed.repo}/commit/${sha}`
+  try {
+    const u = new URL(commitUrl)
+    if (u.protocol !== 'https:') {
+      return { ok: false, error: 'Unsupported URL.' }
+    }
+  } catch {
+    return { ok: false, error: 'Invalid commit URL.' }
+  }
+  try {
+    await shell.openExternal(commitUrl)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || 'Failed to open browser.' }
+  }
+}
+
 export async function openGitOriginInBrowser(cwd: string): Promise<OpenGitOriginResult> {
   const trimmed = cwd.trim()
   if (!trimmed) {
@@ -1105,6 +1160,20 @@ export function registerGitIpc() {
     }
     return openGitOriginInBrowser(cwd.trim())
   })
+
+  ipcMain.handle(
+    'git:openCommitOnGithub',
+    async (_e: IpcMainInvokeEvent, args: unknown) => {
+      if (args == null || typeof args !== 'object') {
+        return { ok: false, error: 'Invalid arguments.' } satisfies OpenGitOriginResult
+      }
+      const a = args as Record<string, unknown>
+      if (typeof a.cwd !== 'string' || typeof a.hash !== 'string') {
+        return { ok: false, error: 'Invalid path or hash.' } satisfies OpenGitOriginResult
+      }
+      return openGithubCommitInBrowser(a.cwd, a.hash)
+    },
+  )
 
   ipcMain.handle('git:classify', async (_e: IpcMainInvokeEvent, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd.trim()) {
