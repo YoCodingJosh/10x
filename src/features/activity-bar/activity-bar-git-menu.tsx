@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { activityBarIconButtonClass } from '@/features/activity-bar/activity-bar-icon-styles'
 import { summaryEligibleForCreatePrFetch } from '@/features/git/describe-working-tree'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { PublishGithubDialog } from '@/features/github/publish-github-dialog'
@@ -160,6 +161,7 @@ export function ActivityBarGitMenu() {
             type="button"
             variant="ghost"
             size="icon-sm"
+            className={activityBarIconButtonClass}
             title="Git (stage, commit, fetch, pull, push, publish)"
             disabled={!gitCwd}
             aria-label="Git actions"

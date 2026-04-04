@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { ActivityBarGitMenu } from './activity-bar-git-menu'
+import { activityBarIconButtonClass } from './activity-bar-icon-styles'
 import { Button } from '@/components/ui/button'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { useActiveWorkspace } from '@/features/workspaces/hooks/use-active-workspace'
 import { SettingsDialog } from '@/features/settings/settings-dialog'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
+import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { useSidePanelStore } from '@/stores/side-panel-store'
-import { cn } from '@/lib/utils'
 import { Code2, FolderOpen, GitGraph, GitCompare, Globe, Settings } from 'lucide-react'
 
 export function ActivityBar() {
@@ -15,7 +16,26 @@ export function ActivityBar() {
   const focusedAgentPath = useGitCwdForVisibleWorkspace()
   const activePanel = useSidePanelStore((s) => s.active)
   const toggleSidePanel = useSidePanelStore((s) => s.toggle)
+  const gitRepoReady = useGitFocusedCheckoutStore((s) => s.loadState.kind === 'ok')
+  const gitLoadStateKind = useGitFocusedCheckoutStore((s) => s.loadState.kind)
+  const [activeWorkspaceIsGitRepo, setActiveWorkspaceIsGitRepo] = useState<boolean | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const activeWorkspacePath = active?.path ?? null
+
+  useEffect(() => {
+    if (!activeWorkspacePath) {
+      setActiveWorkspaceIsGitRepo(null)
+      return
+    }
+    let cancelled = false
+    void window.mux.git.classify(activeWorkspacePath).then((c) => {
+      if (!cancelled) setActiveWorkspaceIsGitRepo(c.isRepo)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeWorkspacePath, gitLoadStateKind])
 
   async function revealActiveWorkspace() {
     const path = active?.path
@@ -57,6 +77,7 @@ export function ActivityBar() {
             type="button"
             variant="ghost"
             size="icon-sm"
+            className={activityBarIconButtonClass}
             title="Open the focused agent's folder in Cursor (workspace root, or worktree if this tab uses one)"
             onClick={() => void openFocusedAgentInCursor()}
             disabled={!focusedAgentPath}
@@ -67,6 +88,7 @@ export function ActivityBar() {
             type="button"
             variant="ghost"
             size="icon-sm"
+            className={activityBarIconButtonClass}
             title="Open active workspace folder in the file manager"
             onClick={() => void revealActiveWorkspace()}
             disabled={!active?.path}
@@ -77,9 +99,18 @@ export function ActivityBar() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            title="Open origin remote in the browser (HTTPS)"
+            className={activityBarIconButtonClass}
+            title={
+              !activeWorkspacePath
+                ? 'Add a workspace to open the remote in your browser'
+                : activeWorkspaceIsGitRepo === null
+                  ? 'Checking Git…'
+                  : activeWorkspaceIsGitRepo === false
+                    ? 'This workspace folder is not a Git repository'
+                    : 'Open origin remote in the browser (HTTPS)'
+            }
             onClick={() => void openGitOriginInBrowser()}
-            disabled={!active?.path}
+            disabled={!activeWorkspacePath || activeWorkspaceIsGitRepo !== true}
           >
             <Globe className="size-4" />
           </Button>
@@ -87,9 +118,14 @@ export function ActivityBar() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            title="Toggle diff panel (working tree)"
+            className={activityBarIconButtonClass}
+            title={
+              gitRepoReady
+                ? 'Toggle diff panel (working tree)'
+                : 'Diff panel needs a Git repository in the focused folder'
+            }
             aria-pressed={activePanel === 'diff'}
-            className={cn(activePanel === 'diff' && 'bg-accent text-accent-foreground')}
+            disabled={!gitRepoReady}
             onClick={() => toggleSidePanel('diff')}
           >
             <GitCompare className="size-4" />
@@ -98,9 +134,14 @@ export function ActivityBar() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            title="Toggle git history graph"
+            className={activityBarIconButtonClass}
+            title={
+              gitRepoReady
+                ? 'Toggle git history graph'
+                : 'Git history needs a Git repository in the focused folder'
+            }
             aria-pressed={activePanel === 'git-graph'}
-            className={cn(activePanel === 'git-graph' && 'bg-accent text-accent-foreground')}
+            disabled={!gitRepoReady}
             onClick={() => toggleSidePanel('git-graph')}
           >
             <GitGraph className="size-4" />
@@ -108,7 +149,15 @@ export function ActivityBar() {
           <ActivityBarGitMenu />
         </div>
         <div className="mt-auto flex flex-col items-center pb-1 pt-2">
-          <Button type="button" variant="ghost" size="icon-sm" title="Settings" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={activityBarIconButtonClass}
+            title="Settings"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+          >
             <Settings className="size-4" />
           </Button>
         </div>

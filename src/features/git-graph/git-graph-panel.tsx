@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { CommitInspector, formatRelativeShort, type CommitInspectData } from '@/features/git-graph/commit-inspector'
 import { DiffFileBlock } from '@/features/diff-panel/diff-file-block'
 import { parseUnifiedDiff } from '@/features/diff-panel/parse-unified-diff'
+import { friendlyMessageForGitLogFailure } from '@/features/git/git-friendly-panel-errors'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { SplitSash } from '@/features/shell/split-sash'
 import { cn } from '@/lib/utils'
@@ -33,6 +34,7 @@ export function GitGraphPanel() {
   const [commits, setCommits] = useState<LogCommit[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [logInfoMessage, setLogInfoMessage] = useState<string | null>(null)
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
@@ -48,18 +50,28 @@ export function GitGraphPanel() {
     if (!cwd) {
       setCommits([])
       setError(null)
+      setLogInfoMessage(null)
       return
     }
     setLoading(true)
     setError(null)
+    setLogInfoMessage(null)
     try {
       const r = await window.mux.git.logGraph(cwd)
       if (!r.ok) {
         setCommits([])
-        setError(r.error)
+        const friendly = friendlyMessageForGitLogFailure(r.error)
+        if (friendly) {
+          setLogInfoMessage(friendly)
+          setError(null)
+        } else {
+          setError(r.error)
+          setLogInfoMessage(null)
+        }
         return
       }
       setCommits(r.commits)
+      setLogInfoMessage(null)
       setSelectedIndex(null)
       setInspect(null)
       setInspectError(null)
@@ -252,10 +264,18 @@ export function GitGraphPanel() {
               {cwd && loadState.kind === 'not-repo' && (
                 <p className="text-sm text-muted-foreground">Not a git repository.</p>
               )}
+              {cwd && loadState.kind !== 'not-repo' && logInfoMessage && (
+                <p className="text-sm text-muted-foreground">{logInfoMessage}</p>
+              )}
               {cwd && loadState.kind !== 'not-repo' && error && (
                 <p className="text-sm text-destructive">{error}</p>
               )}
-              {cwd && loadState.kind !== 'not-repo' && !error && commits.length === 0 && !loading && (
+              {cwd &&
+                loadState.kind !== 'not-repo' &&
+                !error &&
+                !logInfoMessage &&
+                commits.length === 0 &&
+                !loading && (
                 <p className="text-sm text-muted-foreground">No commits.</p>
               )}
               {commits.map((c, i) => {

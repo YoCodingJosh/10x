@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DiffFileBlock } from '@/features/diff-panel/diff-file-block'
 import { parseUnifiedDiff } from '@/features/diff-panel/parse-unified-diff'
+import { friendlyMessageForWorkingTreeDiffFailure } from '@/features/git/git-friendly-panel-errors'
 import { useGitCwdForVisibleWorkspace } from '@/features/git/use-git-cwd-for-visible-workspace'
 import { cn } from '@/lib/utils'
 import { useSidePanelStore } from '@/stores/side-panel-store'
@@ -25,24 +26,35 @@ export function DiffViewerPanel() {
   const [mode, setMode] = useState<GitDiffMode>('all')
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
     if (!cwd) {
       setText(null)
       setError(null)
+      setInfoMessage(null)
       return
     }
     setLoading(true)
     setError(null)
+    setInfoMessage(null)
     try {
       const r = await window.mux.git.diff({ cwd, mode })
       if (!r.ok) {
         setText(null)
-        setError(r.error)
+        const friendly = friendlyMessageForWorkingTreeDiffFailure(r.error)
+        if (friendly) {
+          setInfoMessage(friendly)
+          setError(null)
+        } else {
+          setError(r.error)
+          setInfoMessage(null)
+        }
         return
       }
       setText(r.text)
+      setInfoMessage(null)
     } finally {
       setLoading(false)
     }
@@ -58,7 +70,7 @@ export function DiffViewerPanel() {
   }, [text])
 
   const emptyMessage =
-    !loading && !error && files.length === 0
+    !loading && !error && !infoMessage && files.length === 0
       ? mode === 'staged'
         ? 'Nothing staged.'
         : mode === 'unstaged'
@@ -127,6 +139,9 @@ export function DiffViewerPanel() {
           )}
           {cwd && loadState.kind === 'not-repo' && (
             <p className="text-sm text-muted-foreground">Not a git repository for this folder.</p>
+          )}
+          {cwd && loadState.kind !== 'not-repo' && infoMessage && (
+            <p className="text-sm text-muted-foreground">{infoMessage}</p>
           )}
           {cwd && loadState.kind !== 'not-repo' && error && (
             <p className="text-sm text-destructive">{error}</p>
