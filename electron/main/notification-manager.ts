@@ -37,16 +37,22 @@ function stripAnsi(str: string): string {
 
 // ─── Detection patterns ───────────────────────────────────────────────────────
 
-/** Plan / permission blocks — fairly stable English phrases + Yes/No row. */
+/**
+ * Plan / permission blocks — stable phrases + Yes/No rows.
+ * Includes bash approval (`Do you want to proceed`), Unicode apostrophe in "don't", and
+ * `❯ 1. Yes` (not just `❯ Yes` — the latter never matches when the menu uses numbered lines).
+ */
+/** Note: do not match bare `shift+tab` — Claude prints that in idle footers e.g. “accept edits on (shift+tab to cycle)”. */
 const PERMISSIONISH_RE =
-  /(don't ask again for)|(tell Claude what to do differently)|\b(allow once|allow always|allow for this session|allow all edits)\b|❯\s*(Yes|No)\b|shift\s*\+\s*tab/i
+  /(don't ask again for)|(don\u2019t ask again for)|(tell Claude what to do differently)|\b(allow once|allow always|allow for this session|allow all edits)\b|❯\s*(Yes|No)\b|❯\s*\d+\.\s*(Yes|No)\b|\bDo you want to proceed\??|\bThis command requires approval\b|\bDo you want to create\b/i
 
 /**
  * Hints that the UI is waiting for a choice (numbered row, arrows, "pick option", etc.).
- * Claude Code menus are usually 1. 2. 3. — not Y/n.
+ * Claude Code footers (`Esc to cancel · Tab to amend`) are strong signals — use with numbered
+ * rows so diff/code line numbers (`1 import`, `2 import`) alone do not mean "needs input".
  */
 const CHOICE_HINT_RE =
-  /(choose|select|pick)\s+(an?\s+)?(option|answer|choice)|\benter\s*[\[(]?\d|\btype\s+(\d|a\s+number)|\bpress\s+\d|\b\d+\s*[-–]\s*\d+\s+(to|for)\b|↑\s*\/?\s*↓|\buse arrow keys\b|\besc(?:ape)?\s+to\s+cancel\b|\bj\/k\b\s+to\b|\breturn\b.*\bconfirm\b|\btab\s+to\s+amend\b|cancel\s*·\s*tab/i
+  /(choose|select|pick)\s+(an?\s+)?(option|answer|choice)|\benter\s*[\[(]?\d|\btype\s+(\d|a\s+number)|\bpress\s+\d|\b\d+\s*[-–]\s*\d+\s+(to|for)\b|↑\s*\/?\s*↓|\buse arrow keys\b|\besc(?:ape)?\s+to\s+cancel\b|\bj\/k\b\s+to\b|\breturn\b.*\bconfirm\b|\btab\s+to\s+amend\b|cancel\s*·\s*tab|ctrl\+e\s+to\s+explain/i
 
 /**
  * Numbered / column-style option rows. Claude Code often draws the selection as `> 1. Yes`
@@ -55,10 +61,19 @@ const CHOICE_HINT_RE =
 const NUMBERED_OPTION_LINE_RE =
   /^[\s>›❯]*\d+(\.\s+|\)\s+|[│┃┆┊┇╎║]\s+|›\s+)\S/
 
+/**
+ * Diff / file-preview line numbers (`  1 import …`, `  2 export …`) match NUMBERED_OPTION_LINE_RE
+ * but are not permission menus — exclude them from menu-option counts.
+ */
+const CODE_OR_DIFF_LINE_NUMBER_RE =
+  /^\s*\d+\.\s+(import|export|default|from|const|let|var|function|class|interface|type|enum|namespace|return|await|new|async|static|public|private|protected|package|using|void|def|fn|pub|mod|trait|impl|struct|match|where|use|#|\/\/|\/\*|<!DOCTYPE|<\?xml|<html|export\s+default|\/\/\/)/i
+
 function countNumberedOptionLines(chunk: string): number {
   let n = 0
   for (const line of chunk.split(/\r?\n/)) {
-    if (NUMBERED_OPTION_LINE_RE.test(line)) n++
+    if (!NUMBERED_OPTION_LINE_RE.test(line)) continue
+    if (CODE_OR_DIFF_LINE_NUMBER_RE.test(line)) continue
+    n++
   }
   return n
 }
@@ -68,13 +83,39 @@ function recentLines(chunk: string, maxLines: number): string {
   return lines.slice(Math.max(0, lines.length - maxLines)).join('\n')
 }
 
+/**
+ * Claude ends each agent turn with a line like `✻ Cogitated for 39s`. Permission prompts from
+ * earlier in the same session can still sit in the PTY scrollback; only the text *after* the
+ * last such line reflects “current” surface (idle `❯`, or a prompt still open *since* that turn).
+ */
+const TURN_COMPLETION_LINE_RE = /^✻\s+.+/gm
+
+function sliceAfterLastTurnCompletion(clean: string): string {
+  let lastStart = -1
+  for (const m of clean.matchAll(TURN_COMPLETION_LINE_RE)) {
+    lastStart = m.index ?? 0
+  }
+  if (lastStart < 0) return clean
+  return clean.slice(lastStart)
+}
+
+/** Max chars of scoped tail to scan for menus (enough for Esc/Tab footers + options). */
+const NEEDS_INSPECT_MAX = 1800
+
 function needsInputFromBuffer(clean: string): boolean {
-  const inspect = clean.slice(-2400)
+  const scoped = sliceAfterLastTurnCompletion(clean)
+  const inspect = scoped.slice(-NEEDS_INSPECT_MAX)
   if (PERMISSIONISH_RE.test(inspect)) return true
+
   const lastLines = recentLines(inspect, 22)
   const optionRows = countNumberedOptionLines(lastLines)
-  if (optionRows >= 2) return true
-  if (optionRows >= 1 && CHOICE_HINT_RE.test(inspect)) return true
+  const hasMenuFooter = CHOICE_HINT_RE.test(inspect)
+
+  /**
+   * Numbered options alone matched diff line numbers in file previews (false blue dot).
+   * Require a real menu footer (Esc / Tab / ctrl+e hints) or we already returned via PERMISSIONISH.
+   */
+  if (hasMenuFooter && optionRows >= 1) return true
   return false
 }
 
@@ -284,7 +325,7 @@ export function onAgentOutput(sessionId: string, data: string): void {
 
     if (session.hasReceivedInput && needs) {
       transitionState(sessionId, session, 'needs-input')
-    } else if (session.hasReceivedInput && idle) {
+    } else if (session.hasReceivedInput && idle && !needs) {
       transitionState(sessionId, session, 'idle')
     } else if (session.state !== 'running' && !needs && !idle) {
       transitionState(sessionId, session, 'running')
