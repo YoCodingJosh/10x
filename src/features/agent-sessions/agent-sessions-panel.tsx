@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { classifyAgentWorktreeClose } from '@/features/git/classify-agent-worktree-close'
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
@@ -165,17 +166,35 @@ export function AgentSessionsPanel() {
     }
   }, [workspaceId, activeTabId, resolvedTabId, setActiveTab])
 
-  function requestCloseTab(tab: AgentTab) {
-    if (!tab.agentPath) {
-      closeTab(workspaceId, tab.id)
-      return
-    }
-    setCloseWorktreeConfirm({
-      tabId: tab.id,
-      agentPath: tab.agentPath,
-      label: tab.label,
-    })
-  }
+  const requestCloseTab = useCallback(
+    async (tab: AgentTab) => {
+      const kind = await classifyAgentWorktreeClose(tab)
+      if (kind === 'plain') {
+        closeTab(workspaceId, tab.id)
+        return
+      }
+      if (kind === 'stale') {
+        void runWithStatusActivity(
+          { domain: 'git', label: 'Removing worktree', detail: tab.agentPath! },
+          async () => {
+            const r = await window.mux.git.removeMuxWorktree(tab.agentPath!)
+            if (r.ok) {
+              closeTab(workspaceId, tab.id)
+              void refreshFocusedCheckoutGit()
+            }
+            return r
+          },
+        )
+        return
+      }
+      setCloseWorktreeConfirm({
+        tabId: tab.id,
+        agentPath: tab.agentPath!,
+        label: tab.label,
+      })
+    },
+    [workspaceId, closeTab],
+  )
 
   useEffect(() => {
     if (!closeIntent) return
@@ -187,7 +206,7 @@ export function AgentSessionsPanel() {
     const tab = tabs.find((t) => t.id === closeIntent.tabId)
     clearCloseIntent()
     if (!tab) return
-    requestCloseTab(tab)
+    void requestCloseTab(tab)
   }, [closeIntent, workspaceId, resolvedTabId, tabs, clearCloseIntent, requestCloseTab])
 
   async function confirmWorktree(worktreeName: string): Promise<boolean> {
@@ -398,7 +417,7 @@ export function AgentSessionsPanel() {
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        requestCloseTab(tab)
+                        void requestCloseTab(tab)
                       }}
                     >
                       <X className="size-3" />

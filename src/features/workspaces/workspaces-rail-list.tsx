@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FolderOpen, Plus, Trash2, X } from 'lucide-react'
 
+import { classifyAgentWorktreeClose } from '@/features/git/classify-agent-worktree-close'
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import {
@@ -99,18 +100,36 @@ export function WorkspacesRailList() {
   /** `workspaceId:tabId` — show close control when pointer is over this agent row. */
   const [hoveredAgentSessionId, setHoveredAgentSessionId] = useState<string | null>(null)
 
-  function requestCloseAgentTab(workspaceId: string, tab: AgentTab) {
-    if (!tab.agentPath) {
-      closeTab(workspaceId, tab.id)
-      return
-    }
-    setCloseWorktreeConfirm({
-      workspaceId,
-      tabId: tab.id,
-      agentPath: tab.agentPath,
-      label: tab.label,
-    })
-  }
+  const requestCloseAgentTab = useCallback(
+    async (workspaceId: string, tab: AgentTab) => {
+      const kind = await classifyAgentWorktreeClose(tab)
+      if (kind === 'plain') {
+        closeTab(workspaceId, tab.id)
+        return
+      }
+      if (kind === 'stale') {
+        void runWithStatusActivity(
+          { domain: 'git', label: 'Removing worktree', detail: tab.agentPath! },
+          async () => {
+            const r = await window.mux.git.removeMuxWorktree(tab.agentPath!)
+            if (r.ok) {
+              closeTab(workspaceId, tab.id)
+              void refreshFocusedCheckoutGit()
+            }
+            return r
+          },
+        )
+        return
+      }
+      setCloseWorktreeConfirm({
+        workspaceId,
+        tabId: tab.id,
+        agentPath: tab.agentPath!,
+        label: tab.label,
+      })
+    },
+    [closeTab],
+  )
 
   function activateWorkspace(wId: string) {
     const attentionSid = firstAttentionSessionIdInWorkspace(wId, attention)
@@ -437,7 +456,7 @@ export function WorkspacesRailList() {
                             )}
                             onClick={(e) => {
                               e.stopPropagation()
-                              requestCloseAgentTab(w.id, tab)
+                              void requestCloseAgentTab(w.id, tab)
                             }}
                           >
                             <X className="size-3" />

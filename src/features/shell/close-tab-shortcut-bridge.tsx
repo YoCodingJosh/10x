@@ -17,7 +17,8 @@ const CLOSE_WINDOW_CONFIRM =
   'Close this window? This will end all running terminal sessions and agent processes.'
 
 /**
- * ⌘W / Ctrl+W: close the focused terminal shell, or the active agent tab (worktree confirm unchanged).
+ * ⌘W / Ctrl+W: close the focused terminal shell, or the active agent tab (worktree removal modal only
+ * when the checkout is still a Git worktree).
  * Otherwise intercepts the shortcut so the app does not quit immediately — asks for confirmation first.
  */
 export function CloseTabShortcutBridge() {

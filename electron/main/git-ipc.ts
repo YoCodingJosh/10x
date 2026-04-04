@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -701,6 +702,9 @@ export async function gitCleanupMergedMuxWorktree(rawPath: string): Promise<Remo
   if (!v.ok) return v
   const classified = await gitClassify(v.path)
   if (!classified.isRepo) {
+    if (isUnderMuxWorktreesDir(path.normalize(v.path))) {
+      return removeMuxWorktree(v.path)
+    }
     return { ok: false, error: 'Not a Git repository.' }
   }
   const top = classified.toplevel
@@ -752,10 +756,14 @@ export async function removeMuxWorktree(worktreePath: string): Promise<RemoveMux
 
   const classified = await gitClassify(normalized)
   if (!classified.isRepo) {
-    return {
-      ok: false,
-      error: 'This folder is not a Git worktree anymore. Remove it manually if needed.',
+    /** Orphan folder under ~/10x-worktrees (e.g. worktree was pruned in Git but files remain). */
+    try {
+      await rm(normalized, { recursive: true, force: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return { ok: false, error: `Could not remove folder: ${msg}` }
     }
+    return { ok: true }
   }
 
   const mainRoot = gitMainWorkingTreeRoot(classified)

@@ -110,7 +110,7 @@ export function KeyboardShortcutsSettingsPanel(_props: SettingsPanelProps) {
                 <Kbd>W</Kbd>
               </>
             }
-            detail="With focus in the bottom terminal: close the active shell. With focus in the agent area: close the active agent tab (worktree tabs ask for confirmation). Otherwise: close the window after confirmation."
+            detail="With focus in the bottom terminal: close the active shell. With focus in the agent area: close the active agent tab (worktree tabs ask for confirmation unless the checkout is already gone). Otherwise: close the window after confirmation."
           />
         </div>
       </section>
