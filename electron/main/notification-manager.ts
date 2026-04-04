@@ -80,7 +80,10 @@ interface SessionInfo {
   state: AgentState
   /** Rolling buffer of last ~32 KB of raw PTY output */
   buffer: string
+  /** Combined fallback when workspace/agent are not set */
   label: string
+  workspaceLabel: string
+  agentLabel: string
   debounceTimer: ReturnType<typeof setTimeout> | null
   /** Suppress "complete" notifications until the user has actually sent input */
   hasReceivedInput: boolean
@@ -95,6 +98,13 @@ interface SessionInfo {
 const QUIESCENCE_MS = 1500
 
 const agentSessions = new Map<string, SessionInfo>()
+
+/** `workspaceId:tabId` for the agent tab the user is currently viewing (synced from renderer). */
+let focusedAgentSessionId: string | null = null
+
+function setFocusedAgentSession(sessionId: string | null): void {
+  focusedAgentSessionId = sessionId != null && sessionId.length > 0 ? sessionId : null
+}
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
@@ -118,12 +128,17 @@ function updateBadge(): void {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-function fireNotification(label: string, type: 'complete' | 'needs-input'): void {
+function fireNotification(session: SessionInfo, type: 'complete' | 'needs-input'): void {
   if (!Notification.isSupported()) return
+  const status = type === 'complete' ? 'Complete' : 'Needs input'
+  const ws = session.workspaceLabel.trim()
+  const ag = session.agentLabel.trim()
+  const body =
+    ws.length > 0 && ag.length > 0 ? `${ws} — ${ag} — ${status}` : `${session.label} — ${status}`
   try {
     const notif = new Notification({
-      title: type === 'complete' ? 'Agent finished' : 'Agent needs input',
-      body: label,
+      title: app.getName(),
+      body,
       sound: type === 'complete' ? 'Glass' : 'Sosumi',
       silent: false,
     })
@@ -141,21 +156,33 @@ function transitionState(sessionId: string, session: SessionInfo, next: AgentSta
   }
   updateBadge()
   broadcastAgentState(sessionId, next)
-  if (next === 'idle') fireNotification(session.label, 'complete')
-  if (next === 'needs-input') fireNotification(session.label, 'needs-input')
+  const isForegroundAgent = sessionId === focusedAgentSessionId
+  if (next === 'idle' && !isForegroundAgent) fireNotification(session, 'complete')
+  if (next === 'needs-input' && !isForegroundAgent) fireNotification(session, 'needs-input')
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+export type RegisterAgentSessionLabels = {
+  /** Combined human-readable label (fallback for notification body) */
+  label: string
+  /** Workspace name for notification copy: `workspace — agent — …` */
+  notificationWorkspace?: string
+  /** Tab / agent name for notification copy */
+  notificationAgent?: string
+}
+
 /** Call once per PTY session created (claude kind only). */
-export function registerAgentSession(sessionId: string, label: string): void {
+export function registerAgentSession(sessionId: string, meta: RegisterAgentSessionLabels): void {
   const existing = agentSessions.get(sessionId)
   if (existing != null && existing.debounceTimer !== null) clearTimeout(existing.debounceTimer)
 
   agentSessions.set(sessionId, {
     state: 'running',
     buffer: '',
-    label,
+    label: meta.label,
+    workspaceLabel: meta.notificationWorkspace?.trim() ?? '',
+    agentLabel: meta.notificationAgent?.trim() ?? '',
     debounceTimer: null,
     hasReceivedInput: false,
     attentionDismissed: false,
@@ -227,5 +254,14 @@ export function registerAgentAttentionIpc(): void {
   ipcMain.on('agent:dismiss-attention', (_event, sessionId: unknown) => {
     if (typeof sessionId !== 'string') return
     dismissAgentAttention(sessionId)
+  })
+
+  ipcMain.on('agent:set-focused-session', (_event, sessionId: unknown) => {
+    if (sessionId === null || sessionId === undefined) {
+      setFocusedAgentSession(null)
+      return
+    }
+    if (typeof sessionId !== 'string') return
+    setFocusedAgentSession(sessionId)
   })
 }

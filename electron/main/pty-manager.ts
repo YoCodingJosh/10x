@@ -278,8 +278,11 @@ export type PtyCreateOpts = {
   rows: number
   /** @default 'claude' */
   kind?: 'claude' | 'shell'
-  /** Human-readable label shown in macOS notifications */
+  /** Human-readable label (combined fallback for notifications) */
   label?: string
+  /** With `notificationAgent`, used for `workspace — agent — Complete|Needs input` */
+  notificationWorkspace?: string
+  notificationAgent?: string
 }
 
 /**
@@ -326,7 +329,11 @@ export function registerPtyIpc() {
         kind === 'shell' ? spawnShellPty(cwd, cols, rows, env) : spawnClaudePty(cwd, cols, rows, env)
 
       if (kind !== 'shell') {
-        registerAgentSession(sessionId, opts.label ?? sessionId)
+        registerAgentSession(sessionId, {
+          label: opts.label ?? sessionId,
+          notificationWorkspace: opts.notificationWorkspace,
+          notificationAgent: opts.notificationAgent,
+        })
       }
 
       proc.onData((data) => {

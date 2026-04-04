@@ -142,6 +142,8 @@ declare global {
         onStateChange: (handler: (payload: { sessionId: string; state: string }) => void) => () => void
         /** Tell the main process the user focused this agent tab (keeps dock badge in sync with blue dots). */
         dismissAttention: (sessionId: string) => void
+        /** Active agent tab in the visible workspace (`workspaceId:tabId`); suppresses OS notifications for that session. */
+        setFocusedSession: (sessionId: string | null) => void
       }
       pty: {
         create: (opts: {
@@ -151,6 +153,8 @@ declare global {
           rows: number
           kind?: 'claude' | 'shell'
           label?: string
+          notificationWorkspace?: string
+          notificationAgent?: string
         }) => Promise<{ ok: true } | { ok: false; error: string }>
         write: (sessionId: string, data: string) => void
         resize: (sessionId: string, cols: number, rows: number) => void

@@ -22,7 +22,21 @@ function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown 
 }
 
 /** PTY + xterm live here only so `sessionId` never appears in the parent render path (React Compiler–safe). */
-function ClaudeAgentTerminal({ workspaceId, tabId, cwd, label }: { workspaceId: string; tabId: string; cwd: string; label: string }) {
+function ClaudeAgentTerminal({
+  workspaceId,
+  tabId,
+  cwd,
+  label,
+  notificationWorkspace,
+  notificationAgent,
+}: {
+  workspaceId: string
+  tabId: string
+  cwd: string
+  label: string
+  notificationWorkspace: string
+  notificationAgent: string
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -79,6 +93,8 @@ function ClaudeAgentTerminal({ workspaceId, tabId, cwd, label }: { workspaceId: 
         rows,
         kind: 'claude',
         label,
+        notificationWorkspace,
+        notificationAgent,
       })
 
       if (cancelled || tearingDownRef.current) {
@@ -124,7 +140,7 @@ function ClaudeAgentTerminal({ workspaceId, tabId, cwd, label }: { workspaceId: 
       term.dispose()
       container.replaceChildren()
     }
-  }, [workspaceId, tabId, cwd, label])
+  }, [workspaceId, tabId, cwd, label, notificationWorkspace, notificationAgent])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -139,6 +155,8 @@ export function ClaudeSessionPane() {
   const workspaceId = useWorkspaceSessionScope()
   const workspace = useWorkspaceById(workspaceId)
   const tab = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.tabs.find((t) => t.id === tabId) ?? null)
+  const notificationAgent = tab?.label ?? 'Agent'
+  const notificationWorkspace = workspace?.label ?? 'Workspace'
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -160,7 +178,9 @@ export function ClaudeSessionPane() {
           workspaceId={workspaceId}
           tabId={tabId}
           cwd={tab?.agentPath ?? workspace.path}
-          label={`${tab?.label ?? 'Agent'} · ${workspace.label}`}
+          label={`${notificationAgent} · ${workspace.label}`}
+          notificationWorkspace={notificationWorkspace}
+          notificationAgent={notificationAgent}
         />
       )}
     </div>

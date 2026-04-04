@@ -9,6 +9,8 @@ type PtyCreateOpts = {
   rows: number
   kind?: 'claude' | 'shell'
   label?: string
+  notificationWorkspace?: string
+  notificationAgent?: string
 }
 
 type PtyCreateResult =
@@ -236,6 +238,8 @@ const api = {
     },
     dismissAttention: (sessionId: string): void =>
       ipcRenderer.send('agent:dismiss-attention', sessionId),
+    setFocusedSession: (sessionId: string | null): void =>
+      ipcRenderer.send('agent:set-focused-session', sessionId),
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>
