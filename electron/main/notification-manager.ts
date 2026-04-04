@@ -10,6 +10,7 @@ function broadcastAgentState(sessionId: string, session: SessionInfo | null): vo
           sessionId,
           state: 'running' satisfies AgentState,
           needsAttention: false,
+          active: false,
         })
       }
     }
@@ -20,7 +21,12 @@ function broadcastAgentState(sessionId: string, session: SessionInfo | null): vo
     (state === 'idle' || state === 'needs-input') && !session.attentionDismissed
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
-      win.webContents.send('agent:state-change', { sessionId, state, needsAttention })
+      win.webContents.send('agent:state-change', {
+        sessionId,
+        state,
+        needsAttention,
+        active: true,
+      })
     }
   }
 }

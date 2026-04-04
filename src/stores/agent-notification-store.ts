@@ -1,34 +1,59 @@
 import { create } from 'zustand'
 
-/** Idle = agent finished (Glass sound); needs-input = waiting on user (Sosumi). */
+/** Mirrors main-process `AgentState` for workspace-rail text badges. */
+export type AgentSessionActivity = 'running' | 'idle' | 'needs-input'
+
+export type AgentActivityMap = Record<string, AgentSessionActivity>
+
+/** Idle / needs-input dots on the Claude tab strip (not the workspace rail). */
 export type AgentAttentionKind = 'idle' | 'needs-input'
 
 export type AgentAttentionMap = Record<string, AgentAttentionKind>
 
-/** Tailwind classes for status dots — use everywhere we show agent attention. */
 export const agentAttentionDotClass: Record<AgentAttentionKind, string> = {
   idle: 'bg-emerald-500',
   'needs-input': 'bg-sky-400',
 }
 
-/**
- * Tracks which agent sessions need the user's attention (idle / needs-input).
- * Session IDs follow the format `${workspaceId}:${tabId}`.
- *
- * `focusedAgentSessionId` is the active agent tab in the visible workspace (see
- * AgentFocusedSessionBridge). That session never gets a dot: we do not add it
- * to `attention`, and helpers ignore it even if the map is stale.
- */
+export function agentActivityLabel(state: AgentSessionActivity): string {
+  switch (state) {
+    case 'running':
+      return 'RUNNING'
+    case 'idle':
+      return 'IDLE'
+    case 'needs-input':
+      return 'INPUT'
+  }
+}
+
+export function agentActivityBadgeClass(state: AgentSessionActivity): string {
+  switch (state) {
+    case 'running':
+      return 'bg-sky-500/15 text-sky-700 dark:text-sky-300'
+    case 'idle':
+      return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+    case 'needs-input':
+      return 'bg-sky-400/25 text-sky-900 dark:text-sky-100'
+  }
+}
+
+/** Workspace rail: DONE (fresh finish, still “pinged”) — distinct from dismissed IDLE green. */
+export const agentRailDoneBadgeClass =
+  'bg-purple-500/15 text-purple-900 dark:text-purple-200'
+
 type AgentNotificationState = {
+  activityBySession: AgentActivityMap
   attention: AgentAttentionMap
-  /** `workspaceId:tabId` for the foreground agent tab, or null if none. */
   focusedAgentSessionId: string | null
   setFocusedAgentSessionId: (sessionId: string | null) => void
+  _setActivity: (sessionId: string, state: AgentSessionActivity) => void
+  _clearActivity: (sessionId: string) => void
   _setAttention: (sessionId: string, kind: AgentAttentionKind) => void
   _clearAttention: (sessionId: string) => void
 }
 
 export const useAgentNotificationStore = create<AgentNotificationState>((set) => ({
+  activityBySession: {},
   attention: {},
   focusedAgentSessionId: null,
 
@@ -40,6 +65,19 @@ export const useAgentNotificationStore = create<AgentNotificationState>((set) =>
         delete next[sessionId]
       }
       return { focusedAgentSessionId: sessionId, attention: next }
+    }),
+
+  _setActivity: (sessionId, state) =>
+    set((s) => {
+      if (s.activityBySession[sessionId] === state) return s
+      return { activityBySession: { ...s.activityBySession, [sessionId]: state } }
+    }),
+
+  _clearActivity: (sessionId) =>
+    set((s) => {
+      if (!s.activityBySession[sessionId]) return s
+      const { [sessionId]: _, ...rest } = s.activityBySession
+      return { activityBySession: rest }
     }),
 
   _setAttention: (sessionId, kind) =>
@@ -59,25 +97,59 @@ export const useAgentNotificationStore = create<AgentNotificationState>((set) =>
     }),
 }))
 
-/** Subscribe to main-process agent state broadcasts. Call once at app root. */
 export function initAgentNotificationBridge(): () => void {
-  return window.mux.agent.onStateChange(({ sessionId, state, needsAttention }) => {
+  return window.mux.agent.onStateChange((payload) => {
+    const p = payload as {
+      sessionId: string
+      state: string
+      needsAttention?: boolean
+      active?: boolean
+    }
     const store = useAgentNotificationStore.getState()
+    if (p.active === false) {
+      store._clearActivity(p.sessionId)
+      store._clearAttention(p.sessionId)
+      return
+    }
+    if (p.state === 'running' || p.state === 'idle' || p.state === 'needs-input') {
+      store._setActivity(p.sessionId, p.state)
+    }
+
     const focused = store.focusedAgentSessionId
     const show =
-      needsAttention ??
-      (state === 'idle' || state === 'needs-input')
-    if (show && sessionId !== focused) {
+      p.needsAttention ?? (p.state === 'idle' || p.state === 'needs-input')
+    if (show && p.sessionId !== focused) {
       const kind: AgentAttentionKind =
-        state === 'needs-input' ? 'needs-input' : 'idle'
-      store._setAttention(sessionId, kind)
+        p.state === 'needs-input' ? 'needs-input' : 'idle'
+      store._setAttention(p.sessionId, kind)
     } else {
-      store._clearAttention(sessionId)
+      store._clearAttention(p.sessionId)
     }
   })
 }
 
-/** Dot kind for one tab, or none (never for the focused tab). */
+export function tabActivity(
+  workspaceId: string,
+  tabId: string,
+  activity: AgentActivityMap,
+): AgentSessionActivity | null {
+  const sid = `${workspaceId}:${tabId}`
+  return activity[sid] ?? null
+}
+
+/**
+ * Workspace rail copy while Claude is idle: DONE while attention still has idle (green dot phase);
+ * IDLE after dismiss/focus — DONE uses purple badge, IDLE stays emerald.
+ */
+export function workspaceRailIdleLabel(
+  workspaceId: string,
+  tabId: string,
+  attention: AgentAttentionMap,
+): 'DONE' | 'IDLE' {
+  const sid = `${workspaceId}:${tabId}`
+  return attention[sid] === 'idle' ? 'DONE' : 'IDLE'
+}
+
 export function tabAttentionIndicator(
   workspaceId: string,
   tabId: string,
@@ -91,27 +163,6 @@ export function tabAttentionIndicator(
   return 'none'
 }
 
-/**
- * Workspace rail dot: any `needs-input` → that (blue); else any `idle` → green; else none.
- */
-export function workspaceAttentionIndicator(
-  workspaceId: string,
-  attention: AgentAttentionMap,
-  focusedAgentSessionId: string | null,
-): AgentAttentionKind | 'none' {
-  let hasIdle = false
-  const prefix = `${workspaceId}:`
-  for (const [id, kind] of Object.entries(attention)) {
-    if (!id.startsWith(prefix)) continue
-    if (focusedAgentSessionId != null && id === focusedAgentSessionId) continue
-    if (kind === 'needs-input') return 'needs-input'
-    if (kind === 'idle') hasIdle = true
-  }
-  if (hasIdle) return 'idle'
-  return 'none'
-}
-
-/** First session in this workspace to open when activating the workspace (needs-input before idle). */
 export function firstAttentionSessionIdInWorkspace(
   workspaceId: string,
   attention: AgentAttentionMap,

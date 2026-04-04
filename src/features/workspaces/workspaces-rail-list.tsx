@@ -20,12 +20,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import {
-  agentAttentionDotClass,
   firstAttentionSessionIdInWorkspace,
-  tabAttentionIndicator,
+  tabActivity,
   useAgentNotificationStore,
-  workspaceAttentionIndicator,
+  workspaceRailIdleLabel,
 } from '@/stores/agent-notification-store'
+import { AgentActivityBadge } from '@/features/agent-sessions/agent-activity-badge'
 import { EditableAgentTabLabel } from '@/features/agent-sessions/editable-agent-tab-label'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
@@ -39,8 +39,8 @@ export function WorkspacesRailList() {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId)
   const setActiveWorkspaceId = useWorkspaceStore((s) => s.setActiveWorkspaceId)
   const persist = usePersistWorkspacesMutation()
+  const activityBySession = useAgentNotificationStore((s) => s.activityBySession)
   const attention = useAgentNotificationStore((s) => s.attention)
-  const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
   const byWorkspaceId = useAgentTabsStore((s) => s.byWorkspaceId)
   const closeTab = useAgentTabsStore((s) => s.closeTab)
   const addTab = useAgentTabsStore((s) => s.addTab)
@@ -267,12 +267,6 @@ export function WorkspacesRailList() {
           const bucket = byWorkspaceId[w.id]
           const tabs = bucket?.tabs ?? []
           const activeTabId = bucket?.activeTabId ?? null
-          const workspaceInd = workspaceAttentionIndicator(
-            w.id,
-            attention,
-            focusedAgentSessionId,
-          )
-
           return (
             <div
               key={w.id}
@@ -281,7 +275,7 @@ export function WorkspacesRailList() {
                 w.id === activeWorkspaceId && 'bg-sidebar-accent text-sidebar-accent-foreground',
               )}
             >
-              <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1">
+              <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1">
                 <button
                   type="button"
                   className="grid min-h-9 min-w-0 w-full max-w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
@@ -292,22 +286,6 @@ export function WorkspacesRailList() {
                     {w.label}
                   </span>
                 </button>
-                <span
-                  className={cn(
-                    'flex shrink-0 items-center justify-center self-center',
-                    workspaceInd !== 'none' ? 'w-2' : 'w-0 min-w-0 max-w-0 overflow-hidden p-0',
-                  )}
-                  aria-hidden
-                >
-                  {workspaceInd !== 'none' ? (
-                    <span
-                      className={cn(
-                        'size-1.5 rounded-full',
-                        agentAttentionDotClass[workspaceInd],
-                      )}
-                    />
-                  ) : null}
-                </span>
                 {(() => {
                   const rk = repoKindById[w.id]
                   const addDisabled =
@@ -395,12 +373,7 @@ export function WorkspacesRailList() {
                     const sessionId = `${w.id}:${tab.id}`
                     const isActiveAgent =
                       w.id === activeWorkspaceId && tab.id === activeTabId
-                    const tabInd = tabAttentionIndicator(
-                      w.id,
-                      tab.id,
-                      attention,
-                      focusedAgentSessionId,
-                    )
+                    const tabAct = tabActivity(w.id, tab.id, activityBySession)
                     return (
                       <li
                         key={tab.id}
@@ -416,22 +389,16 @@ export function WorkspacesRailList() {
                               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                           )}
                         >
-                          <span
-                            className={cn(
-                              'flex shrink-0 items-center justify-center self-center',
-                              tabInd !== 'none' ? 'w-2' : 'w-0 min-w-0 max-w-0 overflow-hidden p-0',
-                            )}
-                            aria-hidden
-                          >
-                            {tabInd !== 'none' ? (
-                              <span
-                                className={cn(
-                                  'size-1.5 rounded-full',
-                                  agentAttentionDotClass[tabInd],
-                                )}
-                              />
-                            ) : null}
-                          </span>
+                          <div className="flex min-w-0 shrink justify-end self-center">
+                            <AgentActivityBadge
+                              state={tabAct}
+                              railIdleText={
+                                tabAct === 'idle'
+                                  ? workspaceRailIdleLabel(w.id, tab.id, attention)
+                                  : undefined
+                              }
+                            />
+                          </div>
                           <button
                             type="button"
                             className="min-h-7 min-w-0 w-full max-w-full bg-transparent py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"

@@ -153,11 +153,13 @@ declare global {
       }
       agent: {
         onStateChange: (
-          handler: (payload: { sessionId: string; state: string; needsAttention?: boolean }) => void,
+          handler: (
+            payload: { sessionId: string; state: string; needsAttention?: boolean; active?: boolean },
+          ) => void,
         ) => () => void
         /** Tell the main process the user focused this agent tab (keeps dock badge in sync with blue dots). */
         dismissAttention: (sessionId: string) => void
-        /** Active agent tab in the visible workspace (`workspaceId:tabId`); suppresses dock badge and tab dots for that session (not OS notifications). */
+        /** Active agent tab in the visible workspace (`workspaceId:tabId`); suppresses dock badge counts for that session (not OS notifications). */
         setFocusedSession: (sessionId: string | null) => void
         /** macOS: user clicked a system notification — navigate to that agent session. */
         onNavigateToSession: (handler: (payload: { sessionId: string }) => void) => () => void
