@@ -252,9 +252,8 @@ function transitionState(sessionId: string, session: SessionInfo, next: AgentSta
   }
   updateBadge()
   broadcastAgentState(sessionId, session)
-  const isForegroundAgent = sessionId === focusedAgentSessionId
-  if (next === 'idle' && !isForegroundAgent) fireNotification(sessionId, session, 'complete')
-  if (next === 'needs-input' && !isForegroundAgent) fireNotification(sessionId, session, 'needs-input')
+  if (next === 'idle') fireNotification(sessionId, session, 'complete')
+  if (next === 'needs-input') fireNotification(sessionId, session, 'needs-input')
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
