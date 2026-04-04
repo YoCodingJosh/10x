@@ -5,14 +5,16 @@ export type AgentSessionActivity = 'running' | 'idle' | 'needs-input'
 
 export type AgentActivityMap = Record<string, AgentSessionActivity>
 
-/** Idle / needs-input dots on the Claude tab strip (not the workspace rail). */
+/** DONE (violet) / PENDING (amber) dots on the Claude tab strip — matches workspace rail badge colors. */
 export type AgentAttentionKind = 'idle' | 'needs-input'
 
 export type AgentAttentionMap = Record<string, AgentAttentionKind>
 
 export const agentAttentionDotClass: Record<AgentAttentionKind, string> = {
-  idle: 'bg-emerald-500',
-  'needs-input': 'bg-sky-400',
+  /** Matches DONE rail badge (finished, still pinged). */
+  idle: 'bg-violet-500',
+  /** Matches PENDING rail badge. */
+  'needs-input': 'bg-amber-500',
 }
 
 export function agentActivityLabel(state: AgentSessionActivity): string {
@@ -22,7 +24,7 @@ export function agentActivityLabel(state: AgentSessionActivity): string {
     case 'idle':
       return 'IDLE'
     case 'needs-input':
-      return 'INPUT'
+      return 'PENDING'
   }
 }
 
@@ -33,13 +35,12 @@ export function agentActivityBadgeClass(state: AgentSessionActivity): string {
     case 'idle':
       return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
     case 'needs-input':
-      return 'bg-sky-400/25 text-sky-900 dark:text-sky-100'
+      return 'bg-amber-500/20 text-amber-950 dark:text-amber-200'
   }
 }
 
-/** Workspace rail: DONE (fresh finish, still “pinged”) — distinct from dismissed IDLE green. */
-export const agentRailDoneBadgeClass =
-  'bg-purple-500/15 text-purple-900 dark:text-purple-200'
+/** Workspace rail: DONE (fresh finish, still “pinged”) — violet, distinct from IDLE green. */
+export const agentRailDoneBadgeClass = 'bg-violet-800/15 text-violet-900 dark:text-violet-300'
 
 type AgentNotificationState = {
   activityBySession: AgentActivityMap
@@ -116,11 +117,9 @@ export function initAgentNotificationBridge(): () => void {
     }
 
     const focused = store.focusedAgentSessionId
-    const show =
-      p.needsAttention ?? (p.state === 'idle' || p.state === 'needs-input')
+    const show = p.needsAttention ?? (p.state === 'idle' || p.state === 'needs-input')
     if (show && p.sessionId !== focused) {
-      const kind: AgentAttentionKind =
-        p.state === 'needs-input' ? 'needs-input' : 'idle'
+      const kind: AgentAttentionKind = p.state === 'needs-input' ? 'needs-input' : 'idle'
       store._setAttention(p.sessionId, kind)
     } else {
       store._clearAttention(p.sessionId)
@@ -128,24 +127,16 @@ export function initAgentNotificationBridge(): () => void {
   })
 }
 
-export function tabActivity(
-  workspaceId: string,
-  tabId: string,
-  activity: AgentActivityMap,
-): AgentSessionActivity | null {
+export function tabActivity(workspaceId: string, tabId: string, activity: AgentActivityMap): AgentSessionActivity | null {
   const sid = `${workspaceId}:${tabId}`
   return activity[sid] ?? null
 }
 
 /**
- * Workspace rail copy while Claude is idle: DONE while attention still has idle (green dot phase);
- * IDLE after dismiss/focus — DONE uses purple badge, IDLE stays emerald.
+ * Workspace rail copy while Claude is idle: DONE while attention still has idle (violet dot on tab strip);
+ * IDLE after dismiss/focus — DONE uses violet badge, IDLE stays emerald.
  */
-export function workspaceRailIdleLabel(
-  workspaceId: string,
-  tabId: string,
-  attention: AgentAttentionMap,
-): 'DONE' | 'IDLE' {
+export function workspaceRailIdleLabel(workspaceId: string, tabId: string, attention: AgentAttentionMap): 'DONE' | 'IDLE' {
   const sid = `${workspaceId}:${tabId}`
   return attention[sid] === 'idle' ? 'DONE' : 'IDLE'
 }
@@ -163,10 +154,7 @@ export function tabAttentionIndicator(
   return 'none'
 }
 
-export function firstAttentionSessionIdInWorkspace(
-  workspaceId: string,
-  attention: AgentAttentionMap,
-): string | null {
+export function firstAttentionSessionIdInWorkspace(workspaceId: string, attention: AgentAttentionMap): string | null {
   const prefix = `${workspaceId}:`
   const ids = Object.keys(attention)
     .filter((id) => id.startsWith(prefix))

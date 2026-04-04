@@ -360,7 +360,7 @@ export function cleanupAgentSession(sessionId: string): void {
   broadcastAgentState(sessionId, null)
 }
 
-/** Renderer: user focused this agent tab — match dock badge to cleared blue dots. */
+/** Renderer: user focused this agent tab — match dock badge to cleared attention state. */
 export function dismissAgentAttention(sessionId: string): void {
   const info = agentSessions.get(sessionId)
   if (!info) return

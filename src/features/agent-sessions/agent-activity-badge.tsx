@@ -12,7 +12,7 @@ export function AgentActivityBadge({
   className,
 }: {
   state: AgentSessionActivity | null | undefined
-  /** When `state` is idle: DONE (purple) vs IDLE (green, dismissed). */
+  /** When `state` is idle: DONE (violet) vs IDLE (green, dismissed). */
   railIdleText?: 'DONE' | 'IDLE'
   className?: string
 }) {

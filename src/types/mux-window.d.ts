@@ -157,7 +157,7 @@ declare global {
             payload: { sessionId: string; state: string; needsAttention?: boolean; active?: boolean },
           ) => void,
         ) => () => void
-        /** Tell the main process the user focused this agent tab (keeps dock badge in sync with blue dots). */
+        /** Tell the main process the user focused this agent tab (keeps dock badge in sync with tab attention). */
         dismissAttention: (sessionId: string) => void
         /** Active agent tab in the visible workspace (`workspaceId:tabId`); suppresses dock badge counts for that session (not OS notifications). */
         setFocusedSession: (sessionId: string | null) => void
