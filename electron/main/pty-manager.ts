@@ -310,10 +310,6 @@ function stripAutomaticTerminalChunks(data: string): string {
   return s
 }
 
-function shouldCountAsUserPtyWrite(data: string): boolean {
-  return stripAutomaticTerminalChunks(data).length > 0
-}
-
 export function registerPtyIpc() {
   ipcMain.handle('pty:create', async (_event, opts: PtyCreateOpts) => {
     try {
@@ -377,8 +373,9 @@ export function registerPtyIpc() {
     // enables focus tracking (ESC[?1004h). These are not real user keystrokes and would
     // otherwise prematurely mark a fresh session as interacted, defeating the
     // hasReceivedInput guard and triggering blue dots on newly-created agent tabs.
-    if (shouldCountAsUserPtyWrite(data)) {
-      onAgentInput(sessionId)
+    const userPayload = stripAutomaticTerminalChunks(data)
+    if (userPayload.length > 0) {
+      onAgentInput(sessionId, userPayload)
     }
   })
 

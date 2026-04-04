@@ -359,6 +359,14 @@ export function onAgentOutput(sessionId: string, data: string): void {
       transitionToPreInteractionIdle(sessionId, session)
     } else if (session.hasReceivedInput && needs) {
       transitionState(sessionId, session, 'needs-input')
+    } else if (
+      (session.state === 'idle' || session.state === 'needs-input') &&
+      session.hasReceivedInput &&
+      !needs &&
+      !idle
+    ) {
+      /** Buffer no longer looks like a static prompt — agent is drawing (❯ often stays in tail otherwise). */
+      transitionState(sessionId, session, 'running')
     } else if (session.hasReceivedInput && idle && !needs) {
       transitionState(sessionId, session, 'idle')
     } else if (session.state !== 'running' && !needs && !idle) {
@@ -367,14 +375,34 @@ export function onAgentOutput(sessionId: string, data: string): void {
   }, QUIESCENCE_MS)
 }
 
-/** Call when the user sends input to the agent (marks session as actively running). */
-export function onAgentInput(sessionId: string): void {
+/**
+ * Call when the user sends non-auto terminal bytes to the agent PTY (`userPayload` is already
+ * stripped of focus/CPR/DA chunks — see pty-manager).
+ *
+ * From `idle` / `needs-input`, we only go `running` on **submit** (`\r` / `\n`), not on every
+ * keystroke. Output-based promotion is unreliable because `❯` often stays in the PTY tail while
+ * the agent works, so `onAgentOutput` also has a branch before the idle rule.
+ */
+export function onAgentInput(sessionId: string, userPayload: string): void {
   const info = agentSessions.get(sessionId)
   if (!info) return
+  const firstUserBytes = !info.hasReceivedInput
   info.hasReceivedInput = true
-  if (info.state !== 'running') {
-    info.state = 'running'
-    info.buffer = ''
+
+  if (info.state === 'idle' || info.state === 'needs-input') {
+    if (/[\r\n]/.test(userPayload)) {
+      info.state = 'running'
+      info.buffer = ''
+      updateBadge()
+      broadcastAgentState(sessionId, info)
+    } else if (firstUserBytes) {
+      updateBadge()
+      broadcastAgentState(sessionId, info)
+    }
+    return
+  }
+
+  if (info.state === 'running' && firstUserBytes) {
     updateBadge()
     broadcastAgentState(sessionId, info)
   }
