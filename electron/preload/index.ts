@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 type WorkspaceEntry = { id: string; path: string; label: string }
 
+type PersistedAgentTab = { id: string; label: string; agentPath?: string }
+
 type PtyCreateOpts = {
   sessionId: string
   cwd: string
@@ -138,6 +140,11 @@ const api = {
       ipcRenderer.invoke('store:get', 'workspaces'),
     setWorkspaces: (workspaces: WorkspaceEntry[]): Promise<boolean> =>
       ipcRenderer.invoke('store:set', 'workspaces', workspaces),
+    getAgentTabs: (): Promise<Record<string, { tabs: PersistedAgentTab[]; activeTabId: string | null }>> =>
+      ipcRenderer.invoke('store:get', 'agentTabsByWorkspace'),
+    setAgentTabs: (
+      byWorkspace: Record<string, { tabs: PersistedAgentTab[]; activeTabId: string | null }>,
+    ): Promise<boolean> => ipcRenderer.invoke('store:set', 'agentTabsByWorkspace', byWorkspace),
   },
   dialog: {
     pickWorkspace: (): Promise<string | null> =>

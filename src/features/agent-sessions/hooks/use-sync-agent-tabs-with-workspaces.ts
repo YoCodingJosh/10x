@@ -1,18 +1,33 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
+import { useWorkspacesQuery } from '@/features/workspaces/hooks/use-workspaces'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
 
-/** Ensures tab buckets for each saved workspace and drops orphans (runs before paint). */
+/**
+ * Keeps agent tab buckets aligned with the workspace list and loads saved tabs from
+ * electron-store once on first successful workspace fetch.
+ */
 export function useSyncAgentTabsWithWorkspaces() {
-  const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const { data: workspaces, isSuccess } = useWorkspacesQuery()
+  const diskHydrateScheduledRef = useRef(false)
 
   useLayoutEffect(() => {
+    if (!isSuccess || workspaces === undefined) return
+
     const ids = new Set(workspaces.map((w) => w.id))
+    useWorktreeTerminalsStore.getState().pruneToWorkspaces(ids)
+
+    if (!diskHydrateScheduledRef.current) {
+      diskHydrateScheduledRef.current = true
+      void window.mux.store.getAgentTabs().then((raw) => {
+        useAgentTabsStore.getState().hydrateFromDisk(ids, raw)
+      })
+      return
+    }
+
     const { pruneToValidWorkspaceIds, ensureWorkspace } = useAgentTabsStore.getState()
     pruneToValidWorkspaceIds(ids)
-    useWorktreeTerminalsStore.getState().pruneToWorkspaces(ids)
     for (const w of workspaces) ensureWorkspace(w.id)
-  }, [workspaces])
+  }, [isSuccess, workspaces])
 }

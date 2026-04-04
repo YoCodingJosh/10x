@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import { normalizeGitCwdKey } from '@/features/git/normalize-git-cwd'
 import { scheduleFocusMuxXtermForTyping } from '@/lib/focus-mux-xterm'
+import { parsePersistedAgentTabsRoot } from '@/lib/persisted-agent-tabs'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useTerminalScopeStore } from '@/stores/terminal-scope-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
@@ -25,9 +26,16 @@ function initialBucket(): Bucket {
 
 type AgentTabsState = {
   byWorkspaceId: Record<string, Bucket>
+  /**
+   * True after the first load from electron-store (or empty hydrate). Subscribers should not
+   * persist until this is set, to avoid overwriting disk before async hydration completes.
+   */
+  hydratedFromDisk: boolean
   ensureWorkspace: (workspaceId: string) => void
   purgeWorkspace: (workspaceId: string) => void
   pruneToValidWorkspaceIds: (validIds: Set<string>) => void
+  /** Replace tab buckets for the given workspace ids from disk JSON (startup only). */
+  hydrateFromDisk: (validWorkspaceIds: Set<string>, rawPersisted: unknown) => void
   setActiveTab: (workspaceId: string, tabId: string) => void
   addTab: (
     workspaceId: string,
@@ -41,6 +49,30 @@ type AgentTabsState = {
 
 export const useAgentTabsStore = create<AgentTabsState>((set, get) => ({
   byWorkspaceId: {},
+  hydratedFromDisk: false,
+
+  hydrateFromDisk: (validWorkspaceIds, rawPersisted) => {
+    const parsed = parsePersistedAgentTabsRoot(rawPersisted)
+    set((s) => {
+      const next: Record<string, Bucket> = {}
+      for (const id of validWorkspaceIds) {
+        const live = s.byWorkspaceId[id]
+        const fromDisk = parsed[id]
+        const liveHasTabs = live != null && live.tabs.length > 0
+        if (liveHasTabs) {
+          next[id] = live
+        } else if (fromDisk) {
+          next[id] = {
+            tabs: fromDisk.tabs.map((t) => ({ ...t })),
+            activeTabId: fromDisk.activeTabId,
+          }
+        } else {
+          next[id] = initialBucket()
+        }
+      }
+      return { byWorkspaceId: next, hydratedFromDisk: true }
+    })
+  },
 
   ensureWorkspace: (workspaceId) => {
     if (get().byWorkspaceId[workspaceId]) return

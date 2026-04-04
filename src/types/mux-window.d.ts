@@ -7,6 +7,15 @@ declare global {
       store: {
         getWorkspaces: () => Promise<{ id: string; path: string; label: string }[]>
         setWorkspaces: (workspaces: { id: string; path: string; label: string }[]) => Promise<boolean>
+        getAgentTabs: () => Promise<
+          Record<string, { tabs: { id: string; label: string; agentPath?: string }[]; activeTabId: string | null }>
+        >
+        setAgentTabs: (
+          byWorkspace: Record<
+            string,
+            { tabs: { id: string; label: string; agentPath?: string }[]; activeTabId: string | null }
+          >,
+        ) => Promise<boolean>
       }
       dialog: {
         pickWorkspace: () => Promise<string | null>

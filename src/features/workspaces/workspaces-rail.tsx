@@ -13,7 +13,7 @@ export function WorkspacesRail({ widthPx }: WorkspacesRailProps) {
     <aside
       style={widthPx != null ? { width: widthPx, minWidth: 180 } : undefined}
       className={cn(
-        'flex shrink-0 flex-col bg-sidebar',
+        'flex min-h-0 min-w-0 shrink-0 flex-col overflow-x-hidden bg-sidebar',
         widthPx == null && 'w-60 border-l border-border',
       )}
       aria-label="Workspaces"

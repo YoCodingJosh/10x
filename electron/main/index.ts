@@ -19,13 +19,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 type WorkspaceEntry = { id: string; path: string; label: string }
 
+type PersistedAgentTab = { id: string; label: string; agentPath?: string }
+
+type PersistedAgentBucket = {
+  tabs: PersistedAgentTab[]
+  activeTabId: string | null
+}
+
 type TenxStoreSchema = {
   workspaces: WorkspaceEntry[]
+  /** Agent tab rows per workspace id (renderer-owned shape, validated on read). */
+  agentTabsByWorkspace: Record<string, PersistedAgentBucket>
 }
 
 const store = new Store<TenxStoreSchema>({
   defaults: {
     workspaces: [],
+    agentTabsByWorkspace: {},
   },
 })
 

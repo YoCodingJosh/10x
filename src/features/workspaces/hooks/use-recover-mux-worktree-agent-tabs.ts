@@ -6,10 +6,12 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 
 /**
  * After reload, recreate agent tabs for 10x worktrees under ~/10x-worktrees that still exist
- * but are not yet represented by a tab (in-memory state was lost).
+ * but are not yet represented by a tab. Runs only after saved agent tabs have been loaded so we
+ * do not duplicate tabs that were restored from disk.
  */
 export function useRecoverMuxWorktreeAgentTabs() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const hydratedFromDisk = useAgentTabsStore((s) => s.hydratedFromDisk)
   const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
   const signature = useMemo(
     () => workspaces.map((w) => `${w.id}:${w.path}`).join('|'),
@@ -17,6 +19,7 @@ export function useRecoverMuxWorktreeAgentTabs() {
   )
 
   useLayoutEffect(() => {
+    if (!hydratedFromDisk) return
     if (workspaces.length === 0) return
     if (claudeInstalled !== true) return
 
@@ -62,5 +65,5 @@ export function useRecoverMuxWorktreeAgentTabs() {
     return () => {
       cancelled = true
     }
-  }, [signature, workspaces.length, claudeInstalled])
+  }, [signature, workspaces.length, claudeInstalled, hydratedFromDisk])
 }

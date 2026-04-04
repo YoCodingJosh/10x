@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 
 import type { Workspace } from '@/stores/workspace-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
@@ -29,7 +29,7 @@ export function useSyncWorkspacesToStore() {
   const { data, isSuccess } = useWorkspacesQuery()
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isSuccess || !data) return
 
     let nextActive = activeId

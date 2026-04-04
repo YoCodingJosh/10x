@@ -106,8 +106,8 @@ export function WorkspacesRailList() {
           )
         }}
       />
-      <ScrollArea className="min-h-0 flex-1">
-      <div className="p-1">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+      <div className="w-full min-w-0 max-w-full p-1">
         {isPending && (
           <p className="px-2 py-3 text-xs text-muted-foreground">Loading…</p>
         )}
@@ -135,11 +135,11 @@ export function WorkspacesRailList() {
             <div
               key={w.id}
               className={cn(
-                'group rounded-md px-1 py-0.5',
+                'group min-w-0 rounded-md px-1 py-0.5',
                 w.id === activeWorkspaceId && 'bg-sidebar-accent text-sidebar-accent-foreground',
               )}
             >
-              <div className="flex items-center gap-1">
+              <div className="flex min-w-0 items-center gap-1">
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
@@ -174,7 +174,10 @@ export function WorkspacesRailList() {
               </div>
 
               {tabs.length > 0 ? (
-                <ul className="mt-0.5 space-y-0.5 border-l border-border/50 pl-2 ml-3" role="list">
+                <ul
+                  className="mt-0.5 min-w-0 space-y-0.5 border-l border-border/50 pl-2 ml-3"
+                  role="list"
+                >
                   {tabs.map((tab) => {
                     const sessionId = `${w.id}:${tab.id}`
                     const isActiveAgent =
@@ -188,12 +191,13 @@ export function WorkspacesRailList() {
                     return (
                       <li
                         key={tab.id}
+                        className="min-w-0"
                         onMouseEnter={() => setHoveredAgentSessionId(sessionId)}
                         onMouseLeave={() => setHoveredAgentSessionId(null)}
                       >
                         <div
                           className={cn(
-                            'flex min-h-7 min-w-0 items-stretch rounded-sm text-xs transition-colors',
+                            'flex min-h-7 w-full min-w-0 max-w-full items-stretch overflow-hidden rounded-sm text-xs transition-colors',
                             isActiveAgent
                               ? 'bg-background/80 font-medium text-foreground'
                               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
@@ -201,19 +205,26 @@ export function WorkspacesRailList() {
                         >
                           <button
                             type="button"
-                            className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+                            className="flex min-h-7 min-w-0 flex-1 basis-0 items-stretch overflow-hidden text-left"
                             onClick={() => navigateToAgentSession(sessionId)}
                           >
-                            <span className="min-w-0 flex-1 truncate">{tab.label}</span>
-                            {tabInd !== 'none' && (
+                            <span className="flex min-h-7 min-w-0 flex-1 basis-0 items-center gap-1.5 overflow-hidden px-2 py-1">
+                              {tabInd !== 'none' && (
+                                <span
+                                  className={cn(
+                                    'size-1.5 shrink-0 rounded-full',
+                                    agentAttentionDotClass[tabInd],
+                                  )}
+                                  aria-hidden
+                                />
+                              )}
                               <span
-                                className={cn(
-                                  'size-1.5 shrink-0 rounded-full',
-                                  agentAttentionDotClass[tabInd],
-                                )}
-                                aria-hidden
-                              />
-                            )}
+                                className="block min-w-0 flex-1 basis-0 truncate text-left"
+                                title={tab.label}
+                              >
+                                {tab.label}
+                              </span>
+                            </span>
                           </button>
                           <Button
                             type="button"
