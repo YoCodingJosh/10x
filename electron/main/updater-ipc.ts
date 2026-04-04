@@ -66,6 +66,15 @@ export function registerUpdaterIpc() {
       }
     } catch (e) {
       const message = friendlyUpdaterMessage(e instanceof Error ? e.message : String(e))
+      /** Tag exists but artifacts not uploaded yet — same UX as “no update” for users. */
+      if (message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
+        return {
+          ok: true as const,
+          isPackaged: true,
+          currentVersion,
+          updateAvailable: false,
+        }
+      }
       return { ok: false as const, currentVersion, error: message }
     }
   })

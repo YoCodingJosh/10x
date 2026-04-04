@@ -32,6 +32,10 @@ export function GeneralSettingsPanel(_props: SettingsPanelProps) {
       setPhase({ kind: 'readyToInstall' })
     })
     const unErr = window.mux.updater.onError((e) => {
+      if (e.message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
+        setPhase({ kind: 'upToDate' })
+        return
+      }
       setPhase({ kind: 'error', message: e.message })
     })
     return () => {
@@ -67,7 +71,11 @@ export function GeneralSettingsPanel(_props: SettingsPanelProps) {
     setPhase({ kind: 'downloading', percent: 0 })
     const r = await window.mux.updater.downloadUpdate()
     if (!r.ok) {
-      setPhase({ kind: 'error', message: r.error })
+      if (r.error === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
+        setPhase({ kind: 'upToDate' })
+      } else {
+        setPhase({ kind: 'error', message: r.error })
+      }
     }
   }, [])
 
@@ -130,8 +138,7 @@ export function GeneralSettingsPanel(_props: SettingsPanelProps) {
         <p
           className={cn(
             'text-sm',
-            phase.kind === 'error' &&
-              (phase.message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE ? 'text-sky-400' : 'text-destructive'),
+            phase.kind === 'error' && 'text-destructive',
             phase.kind !== 'error' && 'text-muted-foreground',
           )}
         >

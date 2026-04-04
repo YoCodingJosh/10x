@@ -8,10 +8,8 @@ export const UPDATE_RESTART_TOAST_ID = '10x-update-restart'
 const SESSION_DISMISS = '10x.dismissedUpdateVersion'
 
 function toastUpdaterFailure(message: string, duration: number) {
-  if (message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) {
-    toast(message, { duration })
-    return
-  }
+  /** CI still publishing — avoid alarming toasts; same as “no update” from the user’s perspective. */
+  if (message === FRIENDLY_UPDATER_BUILD_IN_PROGRESS_MESSAGE) return
   toast.error(message, { duration })
 }
 
