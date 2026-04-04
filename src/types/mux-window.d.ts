@@ -146,6 +146,8 @@ declare global {
         dismissAttention: (sessionId: string) => void
         /** Active agent tab in the visible workspace (`workspaceId:tabId`); suppresses OS notifications, dock badge, and tab dots for that session. */
         setFocusedSession: (sessionId: string | null) => void
+        /** macOS: user clicked a system notification — navigate to that agent session. */
+        onNavigateToSession: (handler: (payload: { sessionId: string }) => void) => () => void
       }
       pty: {
         create: (opts: {

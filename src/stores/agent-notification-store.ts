@@ -90,3 +90,13 @@ export function workspaceNeedsAttention(
   }
   return false
 }
+
+/** First `workspaceId:…` session in `attention` (stable order), or null. */
+export function firstAttentionSessionIdInWorkspace(
+  workspaceId: string,
+  attention: Record<string, true>,
+): string | null {
+  const prefix = `${workspaceId}:`
+  const ids = Object.keys(attention).filter((id) => id.startsWith(prefix)).sort()
+  return ids[0] ?? null
+}

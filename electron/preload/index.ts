@@ -240,6 +240,16 @@ const api = {
       ipcRenderer.send('agent:dismiss-attention', sessionId),
     setFocusedSession: (sessionId: string | null): void =>
       ipcRenderer.send('agent:set-focused-session', sessionId),
+    onNavigateToSession: (
+      handler: (payload: { sessionId: string }) => void,
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { sessionId: string },
+      ) => handler(payload)
+      ipcRenderer.on('agent:navigate-to-session', listener)
+      return () => ipcRenderer.removeListener('agent:navigate-to-session', listener)
+    },
   },
   pty: {
     create: (opts: PtyCreateOpts): Promise<PtyCreateResult> =>

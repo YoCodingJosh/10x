@@ -170,7 +170,7 @@ function updateBadge(): void {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-function fireNotification(session: SessionInfo, type: 'complete' | 'needs-input'): void {
+function fireNotification(sessionId: string, session: SessionInfo, type: 'complete' | 'needs-input'): void {
   if (!Notification.isSupported()) return
   const status = type === 'complete' ? 'Complete' : 'Needs input'
   const ws = session.workspaceLabel.trim()
@@ -183,6 +183,14 @@ function fireNotification(session: SessionInfo, type: 'complete' | 'needs-input'
       body,
       sound: type === 'complete' ? 'Glass' : 'Sosumi',
       silent: false,
+    })
+    notif.on('click', () => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed() || win.webContents.isDestroyed()) continue
+        win.show()
+        win.focus()
+        win.webContents.send('agent:navigate-to-session', { sessionId })
+      }
     })
     notif.show()
   } catch {
@@ -199,8 +207,8 @@ function transitionState(sessionId: string, session: SessionInfo, next: AgentSta
   updateBadge()
   broadcastAgentState(sessionId, session)
   const isForegroundAgent = sessionId === focusedAgentSessionId
-  if (next === 'idle' && !isForegroundAgent) fireNotification(session, 'complete')
-  if (next === 'needs-input' && !isForegroundAgent) fireNotification(session, 'needs-input')
+  if (next === 'idle' && !isForegroundAgent) fireNotification(sessionId, session, 'complete')
+  if (next === 'needs-input' && !isForegroundAgent) fireNotification(sessionId, session, 'needs-input')
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

@@ -3,10 +3,13 @@ import {
   usePersistWorkspacesMutation,
   useWorkspacesQuery,
 } from '@/features/workspaces/hooks/use-workspaces'
+import { navigateToAgentSession } from '@/features/shell/navigate-to-agent-session'
 import {
+  firstAttentionSessionIdInWorkspace,
   useAgentNotificationStore,
   workspaceNeedsAttention,
 } from '@/stores/agent-notification-store'
+import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -20,6 +23,23 @@ export function WorkspacesRailList() {
   const persist = usePersistWorkspacesMutation()
   const attention = useAgentNotificationStore((s) => s.attention)
   const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
+
+  function activateWorkspace(wId: string) {
+    const attentionSid = firstAttentionSessionIdInWorkspace(wId, attention)
+    if (attentionSid != null) {
+      const colon = attentionSid.indexOf(':')
+      if (colon > 0) {
+        const tabId = attentionSid.slice(colon + 1)
+        useAgentTabsStore.getState().ensureWorkspace(wId)
+        const bucket = useAgentTabsStore.getState().byWorkspaceId[wId]
+        if (bucket?.tabs.some((t) => t.id === tabId)) {
+          navigateToAgentSession(attentionSid)
+          return
+        }
+      }
+    }
+    setActiveWorkspaceId(wId)
+  }
 
   async function removeWorkspace(id: string) {
     const next = workspaces.filter((w) => w.id !== id)
@@ -56,7 +76,7 @@ export function WorkspacesRailList() {
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
-              onClick={() => setActiveWorkspaceId(w.id)}
+              onClick={() => activateWorkspace(w.id)}
             >
               <FolderOpen className="size-3.5 shrink-0 opacity-70" />
               <span className="min-w-0 flex-1 truncate">{w.label}</span>

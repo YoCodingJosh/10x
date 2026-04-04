@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
 
 import { createQueryClient } from '@/lib/query-client'
+import { initAgentSessionNavigateBridge } from '@/features/shell/navigate-to-agent-session'
 import { initAgentNotificationBridge } from '@/stores/agent-notification-store'
 
 import App from '@/App'
@@ -10,6 +11,7 @@ import 'sonner/dist/styles.css'
 import './index.css'
 
 initAgentNotificationBridge()
+initAgentSessionNavigateBridge()
 
 const queryClient = createQueryClient()
 
