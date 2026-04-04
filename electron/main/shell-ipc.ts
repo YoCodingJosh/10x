@@ -5,6 +5,47 @@ import { spawn } from 'node:child_process'
 
 type OkOrErr = { ok: true } | { ok: false; error: string }
 
+const NEITHER_EDITOR_CLI_MSG =
+  'Could not open the folder in Cursor or VS Code: neither the `cursor` nor the `code` shell command is available in your PATH. Install the Cursor or VS Code CLI (Cursor: install shell command; VS Code: Command Palette → Shell Command: Install code command in PATH) and try again.'
+
+/**
+ * Try to open a folder via a CLI (`cursor` or `code` style). Resolves on successful spawn
+ * (same timing heuristic as before: spawn event or short timeout).
+ */
+function tryOpenFolderWithEditorCli(command: string, folderPath: string): Promise<OkOrErr> {
+  return new Promise((resolve) => {
+    const child = spawn(command, [folderPath], {
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env },
+    })
+
+    let settled = false
+    const finish = (result: OkOrErr) => {
+      if (settled) return
+      settled = true
+      child.removeAllListeners()
+      resolve(result)
+    }
+
+    child.on('error', () => {
+      finish({ ok: false, error: `${command}` })
+    })
+
+    child.on('spawn', () => {
+      child.unref()
+      finish({ ok: true })
+    })
+
+    setTimeout(() => {
+      if (!settled) {
+        child.unref()
+        finish({ ok: true })
+      }
+    }, 600)
+  })
+}
+
 export function registerShellIpc() {
   ipcMain.handle('shell:openExternal', async (_e: IpcMainInvokeEvent, url: unknown) => {
     if (typeof url !== 'string' || !url.trim()) {
@@ -46,44 +87,16 @@ export function registerShellIpc() {
       return { ok: false, error: 'Path does not exist.' }
     }
 
-    return await new Promise<OkOrErr>((resolve) => {
-      const child = spawn('cursor', [p], {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env },
-      })
+    const cursorResult = await tryOpenFolderWithEditorCli('cursor', p)
+    if (cursorResult.ok) {
+      return { ok: true }
+    }
 
-      let settled = false
-      const doneOk = () => {
-        if (settled) return
-        settled = true
-        child.removeAllListeners()
-        resolve({ ok: true })
-      }
-      const doneErr = (msg: string) => {
-        if (settled) return
-        settled = true
-        child.removeAllListeners()
-        resolve({ ok: false, error: msg })
-      }
+    const codeResult = await tryOpenFolderWithEditorCli('code', p)
+    if (codeResult.ok) {
+      return { ok: true }
+    }
 
-      child.on('error', (err) => {
-        doneErr(
-          `Could not run \`cursor\`: ${err.message}. Install the Cursor CLI and ensure it is on your PATH.`,
-        )
-      })
-
-      child.on('spawn', () => {
-        child.unref()
-        doneOk()
-      })
-
-      setTimeout(() => {
-        if (!settled) {
-          child.unref()
-          doneOk()
-        }
-      }, 600)
-    })
+    return { ok: false, error: NEITHER_EDITOR_CLI_MSG }
   })
 }
