@@ -97,9 +97,7 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
-      "notarize": {
-        "teamId": "VR3V6J7X67"
-      }
+      "notarize": true
     },
     "linux": {
       "target": "AppImage",

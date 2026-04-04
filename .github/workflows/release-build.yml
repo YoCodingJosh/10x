@@ -10,6 +10,7 @@
 #   APPLE_API_KEY_P8 — base64 of App Store Connect API key file (AuthKey_xxx.p8).
 #   APPLE_API_KEY_ID — Key ID from App Store Connect (10 chars).
 #   APPLE_API_ISSUER — Issuer ID (UUID) from App Store Connect → Keys.
+#   APPLE_TEAM_ID — Apple Developer Team ID (10 chars). Required by electron-builder / notarize (not package.json).
 
 name: Release Builds
 
@@ -112,6 +113,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
