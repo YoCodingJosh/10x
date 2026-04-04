@@ -154,7 +154,14 @@ declare global {
       agent: {
         onStateChange: (
           handler: (
-            payload: { sessionId: string; state: string; needsAttention?: boolean; active?: boolean },
+            payload: {
+              sessionId: string
+              state: string
+              needsAttention?: boolean
+              active?: boolean
+              hasReceivedInput?: boolean
+              hasCompletedTurn?: boolean
+            },
           ) => void,
         ) => () => void
         /** Tell the main process the user focused this agent tab (keeps dock badge in sync with tab attention). */

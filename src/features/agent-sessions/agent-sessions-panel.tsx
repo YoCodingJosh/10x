@@ -2,12 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { classifyAgentWorktreeClose } from '@/features/git/classify-agent-worktree-close'
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
@@ -24,6 +19,7 @@ import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/
 import {
   agentAttentionDotClass,
   tabAttentionIndicator,
+  tabHasCompletedTurn,
   useAgentNotificationStore,
 } from '@/stores/agent-notification-store'
 import { cn } from '@/lib/utils'
@@ -60,6 +56,7 @@ export function AgentSessionsPanel() {
   const clearCloseIntent = useAgentTabCloseIntentStore((s) => s.clearIntent)
 
   const attention = useAgentNotificationStore((s) => s.attention)
+  const hasCompletedTurnBySession = useAgentNotificationStore((s) => s.hasCompletedTurnBySession)
   const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
 
   const [worktreeOpen, setWorktreeOpen] = useState(false)
@@ -135,29 +132,21 @@ export function AgentSessionsPanel() {
   async function initializeGitInWorkspace() {
     const root = workspace?.path
     if (!root) return
-    await runWithStatusActivity(
-      { domain: 'git', label: 'Initializing repository', detail: root },
-      async () => {
-        const r = await window.mux.git.init(root)
-        if (!r.ok) {
-          window.alert(r.error)
-          return r
-        }
-        void refreshFocusedCheckoutGit()
+    await runWithStatusActivity({ domain: 'git', label: 'Initializing repository', detail: root }, async () => {
+      const r = await window.mux.git.init(root)
+      if (!r.ok) {
+        window.alert(r.error)
         return r
-      },
-    )
+      }
+      void refreshFocusedCheckoutGit()
+      return r
+    })
   }
 
   const canCreateAgents = claudeInstalled === true
   const newAgentPlusDisabled = !workspace?.path || repoKind === 'loading' || !canCreateAgents
 
-  const resolvedTabId =
-    tabs.length === 0
-      ? null
-      : activeTabId && tabs.some((t) => t.id === activeTabId)
-        ? activeTabId
-        : tabs[0]!.id
+  const resolvedTabId = tabs.length === 0 ? null : activeTabId && tabs.some((t) => t.id === activeTabId) ? activeTabId : tabs[0]!.id
 
   useLayoutEffect(() => {
     if (resolvedTabId == null) return
@@ -174,17 +163,14 @@ export function AgentSessionsPanel() {
         return
       }
       if (kind === 'stale') {
-        void runWithStatusActivity(
-          { domain: 'git', label: 'Removing worktree', detail: tab.agentPath! },
-          async () => {
-            const r = await window.mux.git.removeMuxWorktree(tab.agentPath!)
-            if (r.ok) {
-              closeTab(workspaceId, tab.id)
-              void refreshFocusedCheckoutGit()
-            }
-            return r
-          },
-        )
+        void runWithStatusActivity({ domain: 'git', label: 'Removing worktree', detail: tab.agentPath! }, async () => {
+          const r = await window.mux.git.removeMuxWorktree(tab.agentPath!)
+          if (r.ok) {
+            closeTab(workspaceId, tab.id)
+            void refreshFocusedCheckoutGit()
+          }
+          return r
+        })
         return
       }
       setCloseWorktreeConfirm({
@@ -212,25 +198,22 @@ export function AgentSessionsPanel() {
   async function confirmWorktree(worktreeName: string): Promise<boolean> {
     const repoPath = workspace?.path
     if (!repoPath) return false
-    return runWithStatusActivity(
-      { domain: 'git', label: 'Creating worktree', detail: worktreeName.trim() },
-      async () => {
-        const result = await window.mux.git.createWorktree({
-          repoCwd: repoPath,
-          worktreeName,
-        })
-        if (!result.ok) {
-          setCreateError(result.error)
-          return false
-        }
-        addTab(workspaceId, {
-          agentPath: result.worktreePath,
-          label: worktreeName.trim(),
-        })
-        void refreshFocusedCheckoutGit()
-        return true
-      },
-    )
+    return runWithStatusActivity({ domain: 'git', label: 'Creating worktree', detail: worktreeName.trim() }, async () => {
+      const result = await window.mux.git.createWorktree({
+        repoCwd: repoPath,
+        worktreeName,
+      })
+      if (!result.ok) {
+        setCreateError(result.error)
+        return false
+      }
+      addTab(workspaceId, {
+        agentPath: result.worktreePath,
+        label: worktreeName.trim(),
+      })
+      void refreshFocusedCheckoutGit()
+      return true
+    })
   }
 
   const emptyState = (
@@ -247,9 +230,9 @@ export function AgentSessionsPanel() {
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">Install Claude Code</p>
               <p className="max-w-sm text-sm text-muted-foreground">
-                Agent tabs need the <span className="font-medium text-foreground">claude</span> CLI. We’ll open
-                a <span className="font-medium text-foreground">global</span> terminal and run the official
-                installer. When it finishes, use <span className="font-medium">Check again</span>.
+                Agent tabs need the <span className="font-medium text-foreground">claude</span> CLI. We’ll open a{' '}
+                <span className="font-medium text-foreground">global</span> terminal and run the official installer. When it finishes, use{' '}
+                <span className="font-medium">Check again</span>.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -262,12 +245,7 @@ export function AgentSessionsPanel() {
               >
                 Install Claude Code
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void useClaudeCodeCliStore.getState().refresh()}
-              >
+              <Button type="button" size="sm" variant="outline" onClick={() => void useClaudeCodeCliStore.getState().refresh()}>
                 Check again
               </Button>
             </div>
@@ -278,24 +256,15 @@ export function AgentSessionsPanel() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Git repository</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Run Claude in the{' '}
-              <span className="font-medium text-foreground">main checkout</span>, or
-              add an isolated worktree under{' '}
-              <code className="rounded bg-muted px-1 font-mono text-xs">~/10x-worktrees</code> when you
-              want a parallel tree.
+              Run Claude in the <span className="font-medium text-foreground">main checkout</span>, or add an isolated worktree under{' '}
+              <code className="rounded bg-muted px-1 font-mono text-xs">~/10x-worktrees</code> when you want a parallel tree.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button type="button" size="sm" onClick={() => startPlainAgent()}>
               Start agent
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="gap-2"
-              onClick={() => openGitWorktreeDialog()}
-            >
+            <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => openGitWorktreeDialog()}>
               <GitBranchPlus className="size-3.5" />
               Create worktree
             </Button>
@@ -306,21 +275,14 @@ export function AgentSessionsPanel() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">No Git repo</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Claude will run in this folder. Initialize Git to unlock worktrees, or start an agent in the
-              folder as-is.
+              Claude will run in this folder. Initialize Git to unlock worktrees, or start an agent in the folder as-is.
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button type="button" size="sm" onClick={() => startPlainAgent()}>
               Start agent
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="gap-2"
-              onClick={() => void initializeGitInWorkspace()}
-            >
+            <Button type="button" size="sm" variant="outline" className="gap-2" onClick={() => void initializeGitInWorkspace()}>
               <GitBranchPlus className="size-3.5" />
               Initialize Git repository
             </Button>
@@ -342,17 +304,14 @@ export function AgentSessionsPanel() {
         onConfirmRemove={async () => {
           const ctx = closeWorktreeConfirm
           if (!ctx) return { ok: false as const, error: 'Nothing to close.' }
-          return runWithStatusActivity(
-            { domain: 'git', label: 'Removing worktree', detail: ctx.agentPath },
-            async () => {
-              const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
-              if (r.ok) {
-                closeTab(workspaceId, ctx.tabId)
-                void refreshFocusedCheckoutGit()
-              }
-              return r
-            },
-          )
+          return runWithStatusActivity({ domain: 'git', label: 'Removing worktree', detail: ctx.agentPath }, async () => {
+            const r = await window.mux.git.removeMuxWorktree(ctx.agentPath)
+            if (r.ok) {
+              closeTab(workspaceId, ctx.tabId)
+              void refreshFocusedCheckoutGit()
+            }
+            return r
+          })
         }}
       />
       <WorktreeNameDialog
@@ -371,11 +330,7 @@ export function AgentSessionsPanel() {
       {tabs.length === 0 || resolvedTabId == null ? (
         emptyState
       ) : (
-        <Tabs
-          value={resolvedTabId}
-          onValueChange={(v) => setActiveTab(workspaceId, v)}
-          className="flex min-h-0 flex-1 flex-col gap-0"
-        >
+        <Tabs value={resolvedTabId} onValueChange={(v) => setActiveTab(workspaceId, v)} className="flex min-h-0 flex-1 flex-col gap-0">
           <div className="flex h-9 min-h-9 max-h-9 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/30 px-2">
             <TabsList
               variant="line"
@@ -387,43 +342,37 @@ export function AgentSessionsPanel() {
                   tab.id,
                   attention,
                   focusedAgentSessionId,
+                  tabHasCompletedTurn(workspaceId, tab.id, hasCompletedTurnBySession),
                 )
                 return (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  asChild
-                  className="h-8 max-h-8 flex-none shrink-0 rounded-md border border-transparent bg-transparent p-0 text-xs shadow-none data-[state=active]:border-border data-[state=active]:bg-background"
-                >
-                  <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
-                    <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
-                      {tabInd !== 'none' && (
-                        <span
-                          className={cn(
-                            'size-1.5 shrink-0 rounded-full',
-                            agentAttentionDotClass[tabInd],
-                          )}
-                        />
-                      )}
-                      <EditableAgentTabLabel tabId={tab.id} />
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      className="h-full shrink-0 rounded-none border-l border-border/60"
-                      title="Close agent tab"
-                      tabIndex={-1}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        void requestCloseTab(tab)
-                      }}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
-                </TabsTrigger>
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    asChild
+                    className="h-8 max-h-8 flex-none shrink-0 rounded-md border border-transparent bg-transparent p-0 text-xs shadow-none data-[state=active]:border-border data-[state=active]:bg-background"
+                  >
+                    <div className="flex h-8 max-h-8 min-h-0 min-w-0 max-w-44 items-stretch overflow-hidden">
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2">
+                        {tabInd !== 'none' && <span className={cn('size-1.5 shrink-0 rounded-full', agentAttentionDotClass[tabInd])} />}
+                        <EditableAgentTabLabel tabId={tab.id} />
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="h-full shrink-0 rounded-none border-l border-border/60"
+                        title="Close agent tab"
+                        tabIndex={-1}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          void requestCloseTab(tab)
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  </TabsTrigger>
                 )
               })}
             </TabsList>
@@ -432,7 +381,7 @@ export function AgentSessionsPanel() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon-xs"
                     className="shrink-0"
                     title="New agent tab"
@@ -442,18 +391,14 @@ export function AgentSessionsPanel() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => startPlainAgent()}>
-                    Start agent on main
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => openGitWorktreeDialog()}>
-                    Create worktree…
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => startPlainAgent()}>Start agent on main</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openGitWorktreeDialog()}>Create worktree…</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon-xs"
                 className="shrink-0"
                 title="New agent tab"

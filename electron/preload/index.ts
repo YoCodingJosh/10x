@@ -236,11 +236,23 @@ const api = {
   },
   agent: {
     onStateChange: (
-      handler: (payload: { sessionId: string; state: string; needsAttention?: boolean }) => void,
+      handler: (payload: {
+        sessionId: string
+        state: string
+        needsAttention?: boolean
+        active?: boolean
+        hasReceivedInput?: boolean
+      }) => void,
     ): (() => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        payload: { sessionId: string; state: string; needsAttention?: boolean },
+        payload: {
+          sessionId: string
+          state: string
+          needsAttention?: boolean
+          active?: boolean
+          hasReceivedInput?: boolean
+        },
       ) => handler(payload)
       ipcRenderer.on('agent:state-change', listener)
       return () => ipcRenderer.removeListener('agent:state-change', listener)

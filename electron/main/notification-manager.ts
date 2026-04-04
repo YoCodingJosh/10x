@@ -11,14 +11,20 @@ function broadcastAgentState(sessionId: string, session: SessionInfo | null): vo
           state: 'running' satisfies AgentState,
           needsAttention: false,
           active: false,
+          hasReceivedInput: false,
+          hasCompletedTurn: false,
         })
       }
     }
     return
   }
   const { state } = session
+  /** Idle at ❯ before a real `transitionState` completion is not a completed turn — no DONE / dock. */
   const needsAttention =
-    (state === 'idle' || state === 'needs-input') && !session.attentionDismissed
+    (state === 'needs-input' &&
+      !session.attentionDismissed &&
+      session.hasReceivedInput) ||
+    (state === 'idle' && !session.attentionDismissed && session.hasCompletedTurn)
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send('agent:state-change', {
@@ -26,6 +32,8 @@ function broadcastAgentState(sessionId: string, session: SessionInfo | null): vo
         state,
         needsAttention,
         active: true,
+        hasReceivedInput: session.hasReceivedInput,
+        hasCompletedTurn: session.hasCompletedTurn,
       })
     }
   }
@@ -149,6 +157,8 @@ interface SessionInfo {
   debounceTimer: ReturnType<typeof setTimeout> | null
   /** Suppress "complete" notifications until the user has actually sent input */
   hasReceivedInput: boolean
+  /** True after first `transitionState` → idle (real turn finished); never set by pre-interaction idle. */
+  hasCompletedTurn: boolean
   /**
    * When true, idle/needs-input does not count for badge, notifications, or needsAttention IPC.
    * Set when the user is viewing that tab as it becomes idle/needs-input, when they switch to it
@@ -203,8 +213,8 @@ function updateBadge(): void {
   for (const [id, s] of agentSessions) {
     if (
       id !== focusedAgentSessionId &&
-      (s.state === 'idle' || s.state === 'needs-input') &&
-      !s.attentionDismissed
+      !s.attentionDismissed &&
+      (s.state === 'needs-input' || (s.state === 'idle' && s.hasCompletedTurn))
     ) {
       count++
     }
@@ -253,13 +263,29 @@ function fireNotification(sessionId: string, session: SessionInfo, type: 'comple
 function transitionState(sessionId: string, session: SessionInfo, next: AgentState): void {
   if (session.state === next) return
   session.state = next
+  if (next === 'idle') {
+    session.hasCompletedTurn = true
+  }
   if (next === 'idle' || next === 'needs-input') {
     session.attentionDismissed = sessionId === focusedAgentSessionId
   }
   updateBadge()
   broadcastAgentState(sessionId, session)
-  if (next === 'idle') fireNotification(sessionId, session, 'complete')
-  if (next === 'needs-input') fireNotification(sessionId, session, 'needs-input')
+  if (next === 'idle' && session.hasReceivedInput) {
+    fireNotification(sessionId, session, 'complete')
+  }
+  if (next === 'needs-input' && session.hasReceivedInput) {
+    fireNotification(sessionId, session, 'needs-input')
+  }
+}
+
+/** At ❯ before the user has typed — idle for UI, no DONE / sound / dock (not a completed turn). */
+function transitionToPreInteractionIdle(sessionId: string, session: SessionInfo): void {
+  if (session.state === 'idle') return
+  session.state = 'idle'
+  session.attentionDismissed = true
+  updateBadge()
+  broadcastAgentState(sessionId, session)
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -302,6 +328,7 @@ export function registerAgentSession(sessionId: string, meta: RegisterAgentSessi
     agentLabel: meta.notificationAgent?.trim() ?? '',
     debounceTimer: null,
     hasReceivedInput: false,
+    hasCompletedTurn: false,
     attentionDismissed: false,
   })
   const created = agentSessions.get(sessionId)
@@ -328,7 +355,9 @@ export function onAgentOutput(sessionId: string, data: string): void {
     const needs = needsInputFromBuffer(clean)
     const idle = looksIdleFromBuffer(clean)
 
-    if (session.hasReceivedInput && needs) {
+    if (!session.hasReceivedInput && idle && !needs && session.state === 'running') {
+      transitionToPreInteractionIdle(sessionId, session)
+    } else if (session.hasReceivedInput && needs) {
       transitionState(sessionId, session, 'needs-input')
     } else if (session.hasReceivedInput && idle && !needs) {
       transitionState(sessionId, session, 'idle')

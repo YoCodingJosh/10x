@@ -286,21 +286,32 @@ export type PtyCreateOpts = {
 }
 
 /**
- * Returns true for escape sequences that the terminal emulator (xterm.js) sends
- * automatically — not as a result of actual user key presses. These should not
- * be counted as "user has interacted with this session."
+ * Strip bytes xterm may inject without a real keypress. They often arrive **bundled** in one
+ * `onData` chunk (so an exact full-string match is not enough — that used to false-trigger
+ * `onAgentInput`, marking every background tab as “user interacted” and producing bogus DONE).
  *
- * - \x1b[I  focus-in  (VT focus tracking, enabled by Claude Code's Ink TUI via \x1b[?1004h)
- * - \x1b[O  focus-out (same feature)
- * - \x1b[\d+;\d+R  cursor position report (response to DSR \x1b[6n)
+ * - CSI I / CSI O — focus in/out (\x1b[?1004h)
+ * - CSI row;col R — cursor position report (DSR \x1b[6n)
+ * - CSI ?… c / CSI >… c — primary / secondary device attribute responses
+ *
+ * Focus-out uses `(?![A-Za-z])` so we do not eat the `O` in `\x1b[OP` (F1, etc.).
  */
-function isAutoTerminalSequence(data: string): boolean {
+function stripAutomaticTerminalChunks(data: string): string {
   let s = data
-  if (s.endsWith('\r')) s = s.slice(0, -1)
-  if (s.endsWith('\n')) s = s.slice(0, -1)
-  if (s === '\x1b[I' || s === '\x1b[O') return true
-  if (/^\x1b\[\d+;\d+R$/.test(s)) return true
-  return false
+  let prev: string
+  do {
+    prev = s
+    s = s.replace(/\x1b\[\d+;\d+R/g, '')
+    s = s.replace(/\x1b\[\?[\d;]*c/g, '')
+    s = s.replace(/\x1b\[>[\d;]*c/g, '')
+    s = s.replace(/\x1b\[I/g, '')
+    s = s.replace(/\x1b\[O(?![A-Za-z])/g, '')
+  } while (s !== prev)
+  return s
+}
+
+function shouldCountAsUserPtyWrite(data: string): boolean {
+  return stripAutomaticTerminalChunks(data).length > 0
 }
 
 export function registerPtyIpc() {
@@ -366,7 +377,7 @@ export function registerPtyIpc() {
     // enables focus tracking (ESC[?1004h). These are not real user keystrokes and would
     // otherwise prematurely mark a fresh session as interacted, defeating the
     // hasReceivedInput guard and triggering blue dots on newly-created agent tabs.
-    if (!isAutoTerminalSequence(data)) {
+    if (shouldCountAsUserPtyWrite(data)) {
       onAgentInput(sessionId)
     }
   })

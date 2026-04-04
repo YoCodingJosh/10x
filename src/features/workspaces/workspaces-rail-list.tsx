@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 import {
   firstAttentionSessionIdInWorkspace,
   tabActivity,
+  tabHasCompletedTurn,
+  tabHasReceivedInput,
   useAgentNotificationStore,
   workspaceRailIdleLabel,
 } from '@/stores/agent-notification-store'
@@ -40,6 +42,8 @@ export function WorkspacesRailList() {
   const setActiveWorkspaceId = useWorkspaceStore((s) => s.setActiveWorkspaceId)
   const persist = usePersistWorkspacesMutation()
   const activityBySession = useAgentNotificationStore((s) => s.activityBySession)
+  const hasReceivedInputBySession = useAgentNotificationStore((s) => s.hasReceivedInputBySession)
+  const hasCompletedTurnBySession = useAgentNotificationStore((s) => s.hasCompletedTurnBySession)
   const attention = useAgentNotificationStore((s) => s.attention)
   const byWorkspaceId = useAgentTabsStore((s) => s.byWorkspaceId)
   const closeTab = useAgentTabsStore((s) => s.closeTab)
@@ -132,7 +136,7 @@ export function WorkspacesRailList() {
   )
 
   function activateWorkspace(wId: string) {
-    const attentionSid = firstAttentionSessionIdInWorkspace(wId, attention)
+    const attentionSid = firstAttentionSessionIdInWorkspace(wId, attention, hasCompletedTurnBySession)
     if (attentionSid != null) {
       const colon = attentionSid.indexOf(':')
       if (colon > 0) {
@@ -374,6 +378,8 @@ export function WorkspacesRailList() {
                     const isActiveAgent =
                       w.id === activeWorkspaceId && tab.id === activeTabId
                     const tabAct = tabActivity(w.id, tab.id, activityBySession)
+                    const tabHri = tabHasReceivedInput(w.id, tab.id, hasReceivedInputBySession)
+                    const tabHct = tabHasCompletedTurn(w.id, tab.id, hasCompletedTurnBySession)
                     return (
                       <li
                         key={tab.id}
@@ -392,9 +398,10 @@ export function WorkspacesRailList() {
                           <div className="flex min-w-0 shrink justify-end self-center">
                             <AgentActivityBadge
                               state={tabAct}
+                              hasReceivedInput={tabHri}
                               railIdleText={
                                 tabAct === 'idle'
-                                  ? workspaceRailIdleLabel(w.id, tab.id, attention)
+                                  ? workspaceRailIdleLabel(w.id, tab.id, attention, tabHct)
                                   : undefined
                               }
                             />

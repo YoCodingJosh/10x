@@ -3,26 +3,38 @@ import {
   agentActivityBadgeClass,
   agentActivityLabel,
   agentRailDoneBadgeClass,
+  agentRailStartingBadgeClass,
 } from '@/stores/agent-notification-store'
 import { cn } from '@/lib/utils'
 
 export function AgentActivityBadge({
   state,
   railIdleText,
+  hasReceivedInput = false,
   className,
 }: {
   state: AgentSessionActivity | null | undefined
-  /** When `state` is idle: DONE (violet) vs IDLE (green, dismissed). */
   railIdleText?: 'DONE' | 'IDLE'
+  /** From main process; false until the user has typed in that agent session. */
+  hasReceivedInput?: boolean
   className?: string
 }) {
   if (state == null) return null
-  const text =
-    state === 'idle' ? (railIdleText ?? 'IDLE') : agentActivityLabel(state)
-  const colorClass =
-    state === 'idle' && railIdleText === 'DONE'
-      ? agentRailDoneBadgeClass
-      : agentActivityBadgeClass(state)
+
+  let text: string
+  let colorClass: string
+  if (state === 'running' && !hasReceivedInput) {
+    text = 'STARTING'
+    colorClass = agentRailStartingBadgeClass
+  } else if (state === 'idle') {
+    text = railIdleText ?? 'IDLE'
+    colorClass =
+      railIdleText === 'DONE' ? agentRailDoneBadgeClass : agentActivityBadgeClass('idle')
+  } else {
+    text = agentActivityLabel(state)
+    colorClass = agentActivityBadgeClass(state)
+  }
+
   return (
     <span
       className={cn(
