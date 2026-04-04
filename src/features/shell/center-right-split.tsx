@@ -1,43 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { WorkspacesRail } from '@/features/workspaces/workspaces-rail'
+import {
+  LAYOUT_DEFAULTS,
+  LAYOUT_KEYS,
+  LAYOUT_RESET_EVENT,
+  readPersistedWorkspacesRailWidth,
+} from '@/lib/persisted-layout'
 
 import { AgentTerminalSplit } from './agent-terminal-split'
 import { SplitSash } from './split-sash'
 
-const STORAGE_KEY = 'mux.workspacesRailWidthPx'
-
-const DEFAULT_WIDTH_PX = 240
-const MIN_WIDTH_PX = 180
-const MAX_WIDTH_PX = 560
-
-function readStoredWidthPx(): number {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw == null) return DEFAULT_WIDTH_PX
-    const n = Number(raw)
-    if (!Number.isFinite(n)) return DEFAULT_WIDTH_PX
-    return Math.min(MAX_WIDTH_PX, Math.max(MIN_WIDTH_PX, Math.round(n)))
-  } catch {
-    return DEFAULT_WIDTH_PX
-  }
-}
+const MIN_WIDTH_PX = LAYOUT_DEFAULTS.workspacesRailMinPx
+const MAX_WIDTH_PX = LAYOUT_DEFAULTS.workspacesRailMaxPx
 
 /**
  * Main column + workspaces rail with a vertical sash (VS Code–style thin line).
  */
 export function CenterRightSplit() {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [rightWidthPx, setRightWidthPx] = useState(readStoredWidthPx)
+  const [rightWidthPx, setRightWidthPx] = useState(readPersistedWorkspacesRailWidth)
   const draggingPointerId = useRef<number | null>(null)
+  const skipNextPersistRef = useRef(false)
 
   useEffect(() => {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false
+      return
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, String(rightWidthPx))
+      localStorage.setItem(LAYOUT_KEYS.workspacesRail, String(rightWidthPx))
     } catch {
       /* ignore */
     }
   }, [rightWidthPx])
+
+  useEffect(() => {
+    const onReset = () => {
+      skipNextPersistRef.current = true
+      setRightWidthPx(LAYOUT_DEFAULTS.workspacesRailWidthPx)
+    }
+    window.addEventListener(LAYOUT_RESET_EVENT, onReset)
+    return () => window.removeEventListener(LAYOUT_RESET_EVENT, onReset)
+  }, [])
 
   const applyWidthFromClientX = useCallback((clientX: number) => {
     const el = containerRef.current

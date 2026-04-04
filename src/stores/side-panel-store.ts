@@ -1,27 +1,16 @@
 import { create } from 'zustand'
 
-const STORAGE_KEY = 'mux.sidePanelWidthPx'
-const LEGACY_STORAGE_KEY = 'mux.diffPanelWidthPx'
-const DEFAULT_WIDTH_PX = 360
-const MIN_WIDTH_PX = 220
-const MAX_WIDTH_PX = 720
+import {
+  LAYOUT_DEFAULTS,
+  LAYOUT_KEYS,
+  readPersistedSidePanelWidth,
+} from '@/lib/persisted-layout'
+
+const DEFAULT_WIDTH_PX = LAYOUT_DEFAULTS.sidePanelWidthPx
+const MIN_WIDTH_PX = LAYOUT_DEFAULTS.sidePanelMinPx
+const MAX_WIDTH_PX = LAYOUT_DEFAULTS.sidePanelMaxPx
 
 export type SidePanelId = 'diff' | 'git-graph'
-
-function readStoredWidthPx(): number {
-  for (const key of [STORAGE_KEY, LEGACY_STORAGE_KEY]) {
-    try {
-      const raw = localStorage.getItem(key)
-      if (raw == null) continue
-      const n = Number(raw)
-      if (!Number.isFinite(n)) continue
-      return Math.min(MAX_WIDTH_PX, Math.max(MIN_WIDTH_PX, Math.round(n)))
-    } catch {
-      /* continue */
-    }
-  }
-  return DEFAULT_WIDTH_PX
-}
 
 type SidePanelState = {
   /** Which side panel is visible; `null` means the column is hidden. */
@@ -33,11 +22,13 @@ type SidePanelState = {
   toggle: (id: SidePanelId) => void
   close: () => void
   setWidthPx: (widthPx: number) => void
+  /** Restore default width without writing localStorage (used after layout reset). */
+  resetWidthWithoutPersist: () => void
 }
 
 export const useSidePanelStore = create<SidePanelState>((set, get) => ({
   active: null,
-  widthPx: readStoredWidthPx(),
+  widthPx: readPersistedSidePanelWidth(),
   open: (id) => set({ active: id }),
   toggle: (id) =>
     set({
@@ -46,12 +37,13 @@ export const useSidePanelStore = create<SidePanelState>((set, get) => ({
   close: () => set({ active: null }),
   setWidthPx: (widthPx) => {
     try {
-      localStorage.setItem(STORAGE_KEY, String(widthPx))
+      localStorage.setItem(LAYOUT_KEYS.sidePanel, String(widthPx))
     } catch {
       /* ignore */
     }
     set({ widthPx })
   },
+  resetWidthWithoutPersist: () => set({ widthPx: DEFAULT_WIDTH_PX }),
 }))
 
 export const SIDE_PANEL_WIDTH = {
