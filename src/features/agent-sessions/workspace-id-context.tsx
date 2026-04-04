@@ -19,3 +19,7 @@ export function useWorkspaceSessionScope() {
   if (!id) throw new Error('useWorkspaceSessionScope must be used under WorkspaceIdProvider')
   return id
 }
+
+export function useOptionalWorkspaceSessionScope() {
+  return useContext(WorkspaceIdContext)
+}

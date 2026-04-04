@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { FolderOpen, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { FolderOpen, Plus, Trash2, X } from 'lucide-react'
 
 import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-dialog'
+import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import {
   usePersistWorkspacesMutation,
   useWorkspacesQuery,
@@ -9,6 +10,12 @@ import {
 import { navigateToAgentSession } from '@/features/shell/navigate-to-agent-session'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import {
@@ -18,8 +25,10 @@ import {
   useAgentNotificationStore,
   workspaceAttentionIndicator,
 } from '@/stores/agent-notification-store'
+import { EditableAgentTabLabel } from '@/features/agent-sessions/editable-agent-tab-label'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { refreshFocusedCheckoutGit } from '@/stores/git-focused-checkout-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
@@ -33,6 +42,53 @@ export function WorkspacesRailList() {
   const focusedAgentSessionId = useAgentNotificationStore((s) => s.focusedAgentSessionId)
   const byWorkspaceId = useAgentTabsStore((s) => s.byWorkspaceId)
   const closeTab = useAgentTabsStore((s) => s.closeTab)
+  const addTab = useAgentTabsStore((s) => s.addTab)
+  const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
+
+  const [repoKindById, setRepoKindById] = useState<
+    Record<string, 'loading' | 'git' | 'plain'>
+  >({})
+
+  const workspacePathSig = useMemo(
+    () =>
+      workspaces
+        .map((w) => `${w.id}\0${w.path}`)
+        .sort()
+        .join('\n'),
+    [workspaces],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setRepoKindById(() => {
+      const next: Record<string, 'loading' | 'git' | 'plain'> = {}
+      for (const w of workspaces) {
+        next[w.id] = w.path ? 'loading' : 'plain'
+      }
+      return next
+    })
+    for (const w of workspaces) {
+      if (!w.path) continue
+      const id = w.id
+      const path = w.path
+      void window.mux.git.classify(path).then((c) => {
+        if (cancelled) return
+        setRepoKindById((prev) => ({ ...prev, [id]: c.isRepo ? 'git' : 'plain' }))
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [workspacePathSig])
+
+  const [worktreeOpen, setWorktreeOpen] = useState(false)
+  const [worktreeCtx, setWorktreeCtx] = useState<{ workspaceId: string } | null>(null)
+  const [worktreeDialogFirst, setWorktreeDialogFirst] = useState(true)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (worktreeOpen) setCreateError(null)
+  }, [worktreeOpen])
 
   const [closeWorktreeConfirm, setCloseWorktreeConfirm] = useState<{
     workspaceId: string
@@ -81,8 +137,75 @@ export function WorkspacesRailList() {
     }
   }
 
+  const startAgentOnMain = useCallback(
+    (workspaceId: string) => {
+      if (claudeInstalled !== true) return
+      setActiveWorkspaceId(workspaceId)
+      addTab(workspaceId)
+    },
+    [addTab, claudeInstalled, setActiveWorkspaceId],
+  )
+
+  const openWorktreeDialogForWorkspace = useCallback(
+    (workspaceId: string) => {
+      if (claudeInstalled !== true) return
+      const tabs = byWorkspaceId[workspaceId]?.tabs ?? []
+      setWorktreeDialogFirst(tabs.length === 0)
+      setWorktreeCtx({ workspaceId })
+      setWorktreeOpen(true)
+    },
+    [byWorkspaceId, claudeInstalled],
+  )
+
+  const confirmWorktree = useCallback(
+    async (worktreeName: string): Promise<boolean> => {
+      const ctx = worktreeCtx
+      if (!ctx) return false
+      const w = workspaces.find((x) => x.id === ctx.workspaceId)
+      const repoPath = w?.path
+      if (!repoPath) return false
+      return runWithStatusActivity(
+        { domain: 'git', label: 'Creating worktree', detail: worktreeName.trim() },
+        async () => {
+          const result = await window.mux.git.createWorktree({
+            repoCwd: repoPath,
+            worktreeName,
+          })
+          if (!result.ok) {
+            setCreateError(result.error)
+            return false
+          }
+          setActiveWorkspaceId(ctx.workspaceId)
+          addTab(ctx.workspaceId, {
+            agentPath: result.worktreePath,
+            label: worktreeName.trim(),
+          })
+          void refreshFocusedCheckoutGit()
+          return true
+        },
+      )
+    },
+    [addTab, setActiveWorkspaceId, worktreeCtx, workspaces],
+  )
+
   return (
     <>
+      <WorktreeNameDialog
+        open={worktreeOpen}
+        onOpenChange={(o) => {
+          setWorktreeOpen(o)
+          if (!o) setWorktreeCtx(null)
+        }}
+        title={worktreeDialogFirst ? 'Create a worktree' : 'New agent worktree'}
+        description={
+          worktreeDialogFirst
+            ? 'Pick a short name. 10x creates a dedicated checkout under ~/10x-worktrees for this agent tab.'
+            : 'Pick a short name for another isolated checkout. Each tab keeps its own worktree.'
+        }
+        confirmLabel={worktreeDialogFirst ? 'Create worktree' : 'Create and open tab'}
+        error={createError}
+        onConfirm={confirmWorktree}
+      />
       <CloseAgentWorktreeDialog
         open={closeWorktreeConfirm !== null}
         onOpenChange={(o) => {
@@ -139,7 +262,7 @@ export function WorkspacesRailList() {
                 w.id === activeWorkspaceId && 'bg-sidebar-accent text-sidebar-accent-foreground',
               )}
             >
-              <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1">
+              <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-1">
                 <button
                   type="button"
                   className="grid min-h-9 min-w-0 w-full max-w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
@@ -166,6 +289,68 @@ export function WorkspacesRailList() {
                     />
                   ) : null}
                 </span>
+                {(() => {
+                  const rk = repoKindById[w.id]
+                  const addDisabled =
+                    !w.path || rk === 'loading' || rk === undefined || claudeInstalled !== true
+                  const addTitle =
+                    claudeInstalled !== true
+                      ? 'Claude Code CLI required'
+                      : rk === 'loading'
+                        ? 'Checking folder…'
+                        : 'New agent tab'
+                  if (rk === 'git' && w.path) {
+                    return (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="shrink-0 opacity-0 group-hover:opacity-100"
+                            title={addTitle}
+                            disabled={addDisabled}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Plus className="size-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              startAgentOnMain(w.id)
+                            }}
+                          >
+                            Start agent on main
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              openWorktreeDialogForWorkspace(w.id)
+                            }}
+                          >
+                            Create worktree…
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )
+                  }
+                  return (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="shrink-0 opacity-0 group-hover:opacity-100"
+                      title={addTitle}
+                      disabled={addDisabled}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startAgentOnMain(w.id)
+                      }}
+                    >
+                      <Plus className="size-3.5" />
+                    </Button>
+                  )
+                })()}
                 <Button
                   type="button"
                   variant="ghost"
@@ -233,9 +418,11 @@ export function WorkspacesRailList() {
                             className="min-h-7 min-w-0 w-full max-w-full bg-transparent py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
                             onClick={() => navigateToAgentSession(sessionId)}
                           >
-                            <span className="block min-w-0 truncate text-left" title={tab.label}>
-                              {tab.label}
-                            </span>
+                            <EditableAgentTabLabel
+                              tabId={tab.id}
+                              workspaceId={w.id}
+                              isTabActive={isActiveAgent}
+                            />
                           </button>
                           <Button
                             type="button"

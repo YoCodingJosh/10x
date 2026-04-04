@@ -3,15 +3,37 @@ import { useEffect, useRef, useState } from 'react'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { cn } from '@/lib/utils'
 
-import { useWorkspaceSessionScope } from './workspace-id-context'
+import { useOptionalWorkspaceSessionScope } from './workspace-id-context'
 
-export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
-  const workspaceId = useWorkspaceSessionScope()
+export function EditableAgentTabLabel({
+  tabId,
+  workspaceId: workspaceIdProp,
+  isTabActive: isTabActiveProp,
+}: {
+  tabId: string
+  /** When set (e.g. workspaces rail), label resolves and renames in this workspace without context. */
+  workspaceId?: string
+  /**
+   * When set, only this row shows text cursor / rename-on-second-click (focused workspace + active tab).
+   * Omit in agent panel where the scoped workspace is always the one on screen.
+   */
+  isTabActive?: boolean
+}) {
+  const workspaceIdFromContext = useOptionalWorkspaceSessionScope()
+  const workspaceId = workspaceIdProp ?? workspaceIdFromContext
+  if (workspaceId == null || workspaceId === '') {
+    throw new Error(
+      'EditableAgentTabLabel requires workspaceId prop or WorkspaceIdProvider',
+    )
+  }
+  const scopedWorkspaceId = workspaceId
+
   const label = useAgentTabsStore(
-    (s) => s.byWorkspaceId[workspaceId]?.tabs.find((t) => t.id === tabId)?.label ?? '',
+    (s) =>
+      s.byWorkspaceId[scopedWorkspaceId]?.tabs.find((t) => t.id === tabId)?.label ?? '',
   )
   const activeTabId = useAgentTabsStore(
-    (s) => s.byWorkspaceId[workspaceId]?.activeTabId ?? null,
+    (s) => s.byWorkspaceId[scopedWorkspaceId]?.activeTabId ?? null,
   )
   const renameTab = useAgentTabsStore((s) => s.renameTab)
 
@@ -21,7 +43,7 @@ export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
   /** Tab was already active when this pointer went down (avoids rename on the click that switches tabs). */
   const wasActiveWhenPressed = useRef(false)
 
-  const isTabActive = activeTabId === tabId
+  const isTabActive = isTabActiveProp ?? activeTabId === tabId
 
   useEffect(() => {
     if (!editing) setDraft(label)
@@ -35,7 +57,7 @@ export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
   }, [isTabActive, editing, label])
 
   function commit() {
-    renameTab(workspaceId, tabId, draft)
+    renameTab(scopedWorkspaceId, tabId, draft)
     setEditing(false)
   }
 
@@ -92,7 +114,7 @@ export function EditableAgentTabLabel({ tabId }: { tabId: string }) {
           : 'Switch to this tab, then click again here to rename'
       }
       onPointerDownCapture={() => {
-        wasActiveWhenPressed.current = activeTabId === tabId
+        wasActiveWhenPressed.current = isTabActive
       }}
       onClick={(e) => {
         if (!isTabActive) return
