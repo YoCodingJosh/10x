@@ -61,5 +61,8 @@ export default defineConfig(({ command }) => {
       }),
     ],
     clearScreen: false,
+    optimizeDeps: {
+      exclude: ['shiki'],
+    },
   }
 })

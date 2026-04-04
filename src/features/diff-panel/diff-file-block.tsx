@@ -1,9 +1,11 @@
+import { useState } from 'react'
+
+import { Button } from '@/components/ui/button'
 import { DiffLineRow } from '@/features/diff-panel/diff-line-row'
 import type { ParsedDiffFile } from '@/features/diff-panel/parse-unified-diff'
-import { Button } from '@/components/ui/button'
+import { useDiffSyntaxHighlight } from '@/features/diff-panel/use-diff-syntax-highlight'
 import { cn } from '@/lib/utils'
 import { Check, Copy, FileCode2 } from 'lucide-react'
-import { useState } from 'react'
 
 type Props = {
   file: ParsedDiffFile
@@ -14,6 +16,7 @@ type Props = {
 
 export function DiffFileBlock({ file, fileIndex, className }: Props) {
   const [copied, setCopied] = useState(false)
+  const highlights = useDiffSyntaxHighlight(file)
 
   return (
     <section
@@ -46,7 +49,7 @@ export function DiffFileBlock({ file, fileIndex, className }: Props) {
       </header>
       <div className="min-w-0">
         {file.lines.map((line, i) => (
-          <DiffLineRow key={i} line={line} />
+          <DiffLineRow key={i} line={line} tokens={highlights?.[i]} />
         ))}
       </div>
     </section>
