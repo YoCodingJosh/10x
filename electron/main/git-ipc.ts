@@ -797,6 +797,14 @@ export type CreateWorktreeResult =
   | { ok: true; worktreePath: string; branch: string }
   | { ok: false; error: string }
 
+/** `git worktree add … HEAD` needs at least one commit so HEAD resolves. */
+const NO_COMMITS_FOR_WORKTREE_MESSAGE =
+  'This repository has no commits yet. Make an initial commit on your current branch, then create a worktree again.'
+
+function isHeadMissingForWorktreeError(gitStderr: string): boolean {
+  return /invalid reference:\s*HEAD|unknown revision.*\bHEAD\b|ambiguous argument ['"]?HEAD/i.test(gitStderr)
+}
+
 export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<CreateWorktreeResult> {
   const classified = await gitClassify(args.repoCwd)
   if (!classified.isRepo) {
@@ -804,6 +812,11 @@ export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<Creat
   }
 
   const { toplevel } = classified
+
+  const headOk = await runGit(toplevel, ['rev-parse', '--verify', 'HEAD'])
+  if (!headOk.ok) {
+    return { ok: false, error: NO_COMMITS_FOR_WORKTREE_MESSAGE }
+  }
   const repoSlug = slugifySegment(path.basename(toplevel))
   const wtSlug = slugifySegment(args.worktreeName)
 
@@ -835,6 +848,9 @@ export async function gitCreateWorktree(args: CreateWorktreeArgs): Promise<Creat
 
   const add = await runGit(toplevel, ['worktree', 'add', worktreePath, '-b', branch, 'HEAD'])
   if (!add.ok) {
+    if (isHeadMissingForWorktreeError(add.error)) {
+      return { ok: false, error: NO_COMMITS_FOR_WORKTREE_MESSAGE }
+    }
     return { ok: false, error: add.error }
   }
 
