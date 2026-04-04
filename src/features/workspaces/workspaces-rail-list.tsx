@@ -139,24 +139,33 @@ export function WorkspacesRailList() {
                 w.id === activeWorkspaceId && 'bg-sidebar-accent text-sidebar-accent-foreground',
               )}
             >
-              <div className="flex min-w-0 items-center gap-1">
+              <div className="grid min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-1">
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                  className="grid min-h-9 min-w-0 w-full max-w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
                   onClick={() => activateWorkspace(w.id)}
                 >
                   <FolderOpen className="size-3.5 shrink-0 opacity-70" />
-                  <span className="min-w-0 flex-1 truncate">{w.label}</span>
-                  {workspaceInd !== 'none' && (
+                  <span className="min-w-0 truncate" title={w.label}>
+                    {w.label}
+                  </span>
+                </button>
+                <span
+                  className={cn(
+                    'flex shrink-0 items-center justify-center self-center',
+                    workspaceInd !== 'none' ? 'w-2' : 'w-0 min-w-0 max-w-0 overflow-hidden p-0',
+                  )}
+                  aria-hidden
+                >
+                  {workspaceInd !== 'none' ? (
                     <span
                       className={cn(
-                        'size-1.5 shrink-0 rounded-full',
+                        'size-1.5 rounded-full',
                         agentAttentionDotClass[workspaceInd],
                       )}
-                      aria-hidden
                     />
-                  )}
-                </button>
+                  ) : null}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
@@ -197,33 +206,35 @@ export function WorkspacesRailList() {
                       >
                         <div
                           className={cn(
-                            'flex min-h-7 w-full min-w-0 max-w-full items-stretch overflow-hidden rounded-sm text-xs transition-colors',
+                            'grid min-h-7 w-full min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-1.5 overflow-hidden rounded-sm pl-2 pr-0 text-xs transition-colors',
                             isActiveAgent
                               ? 'bg-background/80 font-medium text-foreground'
                               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                           )}
                         >
+                          <span
+                            className={cn(
+                              'flex shrink-0 items-center justify-center self-center',
+                              tabInd !== 'none' ? 'w-2' : 'w-0 min-w-0 max-w-0 overflow-hidden p-0',
+                            )}
+                            aria-hidden
+                          >
+                            {tabInd !== 'none' ? (
+                              <span
+                                className={cn(
+                                  'size-1.5 rounded-full',
+                                  agentAttentionDotClass[tabInd],
+                                )}
+                              />
+                            ) : null}
+                          </span>
                           <button
                             type="button"
-                            className="flex min-h-7 min-w-0 flex-1 basis-0 items-stretch overflow-hidden text-left"
+                            className="min-h-7 min-w-0 w-full max-w-full bg-transparent py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
                             onClick={() => navigateToAgentSession(sessionId)}
                           >
-                            <span className="flex min-h-7 min-w-0 flex-1 basis-0 items-center gap-1.5 overflow-hidden px-2 py-1">
-                              {tabInd !== 'none' && (
-                                <span
-                                  className={cn(
-                                    'size-1.5 shrink-0 rounded-full',
-                                    agentAttentionDotClass[tabInd],
-                                  )}
-                                  aria-hidden
-                                />
-                              )}
-                              <span
-                                className="block min-w-0 flex-1 basis-0 truncate text-left"
-                                title={tab.label}
-                              >
-                                {tab.label}
-                              </span>
+                            <span className="block min-w-0 truncate text-left" title={tab.label}>
+                              {tab.label}
                             </span>
                           </button>
                           <Button
