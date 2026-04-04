@@ -150,7 +150,8 @@ function setFocusedAgentSession(sessionId: string | null): void {
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
 function updateBadge(): void {
-  if (process.platform !== 'darwin') return
+  /** Electron: dock (macOS) / Unity launcher (Linux). Not supported on Windows. */
+  if (process.platform !== 'darwin' && process.platform !== 'linux') return
   let count = 0
   for (const [id, s] of agentSessions) {
     if (
@@ -178,12 +179,16 @@ function fireNotification(sessionId: string, session: SessionInfo, type: 'comple
   const body =
     ws.length > 0 && ag.length > 0 ? `${ws} — ${ag} — ${status}` : `${session.label} — ${status}`
   try {
-    const notif = new Notification({
+    const opts: ConstructorParameters<typeof Notification>[0] = {
       title: app.getName(),
       body,
-      sound: type === 'complete' ? 'Glass' : 'Sosumi',
       silent: false,
-    })
+    }
+    /** `sound` is macOS-only in Electron; omit on Windows/Linux to avoid invalid options. */
+    if (process.platform === 'darwin') {
+      opts.sound = type === 'complete' ? 'Glass' : 'Sosumi'
+    }
+    const notif = new Notification(opts)
     notif.on('click', () => {
       for (const win of BrowserWindow.getAllWindows()) {
         if (win.isDestroyed() || win.webContents.isDestroyed()) continue

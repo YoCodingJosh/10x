@@ -23,6 +23,12 @@ function isMacPlatform(): boolean {
   return /Mac|iPhone|iPod|iPad/i.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent)
 }
 
+function revealActiveWorkspaceLabel(): string {
+  if (isMacPlatform()) return 'Open active workspace in Finder'
+  if (/Windows/i.test(navigator.userAgent)) return 'Open active workspace in File Explorer'
+  return 'Open active workspace in file manager'
+}
+
 /**
  * Builds palette rows + runner for the current focused workspace / checkout.
  */
@@ -43,9 +49,7 @@ export function useCommandPaletteActions(): {
   const requestPublish = useCommandPaletteIntentsStore((s) => s.requestPublishDialog)
   const requestWorktree = useCommandPaletteIntentsStore((s) => s.requestWorktreeDialog)
   const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
-  const fileManagerLabel = isMacPlatform()
-    ? 'Open active workspace in Finder'
-    : 'Open active workspace in file manager'
+  const fileManagerLabel = revealActiveWorkspaceLabel()
 
   const wtAligned =
     cwd && wtCwd && normalizeGitCwdKey(cwd) === normalizeGitCwdKey(wtCwd) ? wt : null

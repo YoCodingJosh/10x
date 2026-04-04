@@ -89,7 +89,11 @@ export function ActivityBar() {
             variant="ghost"
             size="icon-sm"
             className={activityBarIconButtonClass}
-            title="Open active workspace folder in the file manager"
+            title={
+              typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
+                ? 'Open active workspace folder in File Explorer'
+                : 'Open active workspace folder in the file manager'
+            }
             onClick={() => void revealActiveWorkspace()}
             disabled={!active?.path}
           >

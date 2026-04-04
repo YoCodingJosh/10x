@@ -19,6 +19,10 @@ You can also install from the **DMG** on [GitHub Releases](https://github.com/br
 
 Use the **AppImage** from [GitHub Releases](https://github.com/brightsidedeveloper/10x/releases).
 
+### Windows
+
+Use the **NSIS installer** (`.exe`) from [GitHub Releases](https://github.com/brightsidedeveloper/10x/releases). Builds are currently **unsigned**; SmartScreen may show a warning until you choose “More info” → “Run anyway,” or you sign the installer with your own certificate.
+
 ## Features
 
 - **Workspaces** — Add several folders; switch between them from the sidebar.
@@ -63,7 +67,7 @@ Implementation detail: Git commands and IPC live in [`electron/main/git-ipc.ts`]
 ## Requirements
 
 - **Node.js** (LTS recommended) and **pnpm** (via Corepack or a global install)
-- **macOS** or **Linux** for packaged builds. Packaging is still native per platform: build mac artifacts on macOS and Linux artifacts on Linux.
+- **macOS**, **Linux**, or **Windows** for packaged builds. Packaging is native per platform (mac on macOS, Linux AppImage on Linux, Windows NSIS on Windows).
 
 You need the **Claude Code** CLI on your `PATH` for agent sessions, and **Cursor** on your `PATH` if you use “open in Cursor.”
 
@@ -101,8 +105,9 @@ Builds for the current host platform and writes artifacts under `release/`.
 
 - On **macOS**, `pnpm build` or `pnpm build:mac` produces a **DMG**.
 - On **Linux**, `pnpm build` or `pnpm build:linux` produces an **AppImage**.
+- On **Windows**, `pnpm build` or `pnpm build:win` produces an **NSIS** setup executable.
 
-Published GitHub releases also trigger GitHub Actions to build both targets and upload those artifacts back to the release automatically.
+Publishing a GitHub Release triggers Actions to build **macOS**, **Linux**, and **Windows** artifacts and upload them to that release.
 
 To share builds, use **GitHub Releases** (the repo now has a release workflow for that) or another binary host—avoid committing large binaries to git history.
 

@@ -1,6 +1,6 @@
 # Creates the semver tag + published GitHub Release for a version bump commit.
 # Triggered by: `pnpm run bump` (local), or manual "Run workflow" in the Actions tab.
-# That fires `release: published` → release-build.yml uploads DMG / AppImage assets.
+# That fires `release: published` → release-build.yml uploads DMG / AppImage / Windows installer assets.
 #
 # Requires: GitHub CLI (`gh`) authenticated locally for dispatch from bump.js.
 #

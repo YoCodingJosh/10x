@@ -14,6 +14,7 @@
     "build": "pnpm run build:bundle && electron-builder",
     "build:mac": "pnpm run build:bundle && electron-builder --mac",
     "build:linux": "pnpm run build:bundle && electron-builder --linux",
+    "build:win": "pnpm run build:bundle && electron-builder --win",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "bump": "node scripts/bump.js",
@@ -102,6 +103,25 @@
     "linux": {
       "target": "AppImage",
       "category": "Development"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+      "publisherName": "BrightSideDeveloper",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
     },
     "publish": {
       "provider": "github",

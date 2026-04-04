@@ -4,6 +4,9 @@
 #
 #   GH_TOKEN — PAT with repo + releases (or use repo default token for upload only).
 #
+# Optional: Windows builds are unsigned by default (verifyUpdateCodeSignature: false in package.json).
+# This is a todo for a later release
+#
 # macOS only:
 #   MAC_CERTS_P12 — base64 of Developer ID Application .p12 (export from Keychain).
 #   MAC_CERTS_PASSWORD — password for that .p12.
@@ -30,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # electron-updater fetches latest-mac.yml / latest-linux.yml from the same release (must be uploaded).
+          # electron-updater: latest-mac.yml, latest-linux.yml, latest.yml (Windows) on the same release.
           - label: macOS
             os: macos-latest
             files: |
@@ -42,6 +45,12 @@ jobs:
             files: |
               release/*.AppImage
               release/*.yml
+          - label: Windows
+            os: windows-latest
+            files: |
+              release/*.exe
+              release/*.yml
+              release/*.blockmap
 
     steps:
       - name: Check out repository
@@ -103,6 +112,12 @@ jobs:
       - name: Build release artifacts (Linux)
         if: matrix.label == 'Linux'
         run: pnpm run build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Build release artifacts (Windows)
+        if: matrix.label == 'Windows'
+        run: pnpm run build:win
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 

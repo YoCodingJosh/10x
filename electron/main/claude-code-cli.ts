@@ -21,8 +21,11 @@ export function isClaudeCodeCliInstalled(): boolean {
   }
 
   const home = os.homedir()
-  const localInstaller = path.join(home, '.local', 'bin', 'claude')
-  if (process.platform !== 'win32' && existsSync(localInstaller)) {
+  const localInstaller =
+    process.platform === 'win32'
+      ? path.join(home, '.local', 'bin', 'claude.exe')
+      : path.join(home, '.local', 'bin', 'claude')
+  if (existsSync(localInstaller)) {
     return true
   }
 
