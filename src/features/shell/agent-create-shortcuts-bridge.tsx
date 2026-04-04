@@ -4,8 +4,11 @@ import { scheduleFocusMuxXtermForTyping } from '@/lib/focus-mux-xterm'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
+import { useAppWideTerminalsStore } from '@/stores/app-wide-terminals-store'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
+import { useTerminalScopeStore } from '@/stores/terminal-scope-store'
 import { useWorktreeTerminalsStore } from '@/stores/worktree-terminals-store'
+import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
 import {
@@ -27,7 +30,7 @@ function digitFromKeyEvent(e: KeyboardEvent): number | null {
 /**
  * ⌘N / Ctrl+N: new agent tab (when workspace path is ready and git summary has loaded).
  * ⌘⇧N / Ctrl+Shift+N: open “Create worktree” dialog when the folder is a Git repo.
- * ⌘T / Ctrl+T: add a terminal shell in the current Project vs Agent section of the terminal panel.
+ * ⌘T / Ctrl+T: add a terminal shell for the current Global, Workspace, or Agent section of the terminal panel.
  * ⌘1–⌘9 / Ctrl+1–9: focus agent tab by index (1 = leftmost) when it exists.
  */
 export function AgentCreateShortcutsBridge() {
@@ -48,6 +51,7 @@ export function AgentCreateShortcutsBridge() {
 
       const git = useGitFocusedCheckoutStore.getState()
       if (git.wt === null) return
+      if (useClaudeCodeCliStore.getState().installed !== true) return
 
       if (e.shiftKey) {
         if (!git.wt.isRepo) return
@@ -76,17 +80,33 @@ export function AgentCreateShortcutsBridge() {
       if (isNonTerminalTextField(activeEl)) return
 
       const visibleId = getVisibleWorkspaceId()
-      if (!visibleId) return
 
-      const panel = document.getElementById('mux-terminal-panel')
-      const scope = panel?.dataset.muxTerminalScope === 'agent' ? 'agent' : 'project'
+      const raw = document.getElementById('mux-terminal-panel')?.dataset.muxTerminalScope
+      const scope =
+        raw === 'agent' ? 'agent' : raw === 'global' ? 'global' : 'project'
 
-      if (scope === 'project') {
+      if (scope === 'global') {
         e.preventDefault()
-        useGlobalTerminalsStore.getState().addShell(visibleId)
+        if (visibleId) {
+          useTerminalScopeStore.getState().setScope(visibleId, 'global')
+        }
+        useAppWideTerminalsStore.getState().addShell()
         scheduleFocusMuxXtermForTyping('#mux-terminal-panel')
         return
       }
+
+      if (scope === 'project') {
+        e.preventDefault()
+        if (!visibleId) {
+          useAppWideTerminalsStore.getState().addShell()
+        } else {
+          useGlobalTerminalsStore.getState().addShell(visibleId)
+        }
+        scheduleFocusMuxXtermForTyping('#mux-terminal-panel')
+        return
+      }
+
+      if (!visibleId) return
 
       const agentTabId =
         useAgentTabsStore.getState().byWorkspaceId[visibleId]?.activeTabId ?? null

@@ -1,21 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
+import { useAppWideTerminalsStore } from '@/stores/app-wide-terminals-store'
 import { cn } from '@/lib/utils'
 
-export function EditableGlobalShellLabel({
-  workspaceId,
+export function EditableAppWideShellLabel({
   shellId,
   isActive,
 }: {
-  workspaceId: string
   shellId: string
   isActive: boolean
 }) {
-  const label = useGlobalTerminalsStore(
-    (s) => s.byWorkspaceId[workspaceId]?.find((t) => t.id === shellId)?.label ?? '',
-  )
-  const renameShell = useGlobalTerminalsStore((s) => s.renameShell)
+  const label = useAppWideTerminalsStore((s) => s.shells.find((t) => t.id === shellId)?.label ?? '')
+  const renameShell = useAppWideTerminalsStore((s) => s.renameShell)
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(label)
@@ -33,7 +29,7 @@ export function EditableGlobalShellLabel({
   }, [isActive, editing, label])
 
   function commit() {
-    renameShell(workspaceId, shellId, draft)
+    renameShell(shellId, draft)
     setEditing(false)
   }
 
@@ -42,7 +38,7 @@ export function EditableGlobalShellLabel({
       <input
         type="text"
         value={draft}
-        aria-label="Workspace shell name"
+        aria-label="Global shell name"
         className={cn(
           'h-5 min-w-[6ch] max-w-full flex-1 rounded border border-input bg-background px-1 text-[11px]',
           'text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50',

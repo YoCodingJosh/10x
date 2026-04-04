@@ -84,7 +84,7 @@ export function KeyboardShortcutsSettingsPanel(_props: SettingsPanelProps) {
                 <Kbd>T</Kbd>
               </>
             }
-            detail="Add a new shell in the terminal panel for whichever side is selected — Project or Agent."
+            detail="Add a new shell in the terminal panel for whichever scope is selected — Global, Workspace, or Agent."
           />
           <ShortcutRow
             keys={

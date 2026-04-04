@@ -12,10 +12,12 @@ import { CloseAgentWorktreeDialog } from '@/features/git/close-agent-worktree-di
 import { WorktreeNameDialog } from '@/features/git/worktree-name-dialog'
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
+import { runClaudeCodeInstallInGlobalTerminal } from '@/features/terminal-panel/run-claude-install-in-global-terminal'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import type { AgentTab } from '@/stores/agent-tabs-store'
 import { useAgentTabCloseIntentStore } from '@/stores/agent-tab-close-intent-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { refreshFocusedCheckoutGit, useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import {
@@ -71,11 +73,13 @@ export function AgentSessionsPanel() {
 
   const worktreeNonce = useCommandPaletteIntentsStore((s) => s.worktreeNonce)
   const newAgentTabNonce = useCommandPaletteIntentsStore((s) => s.newAgentTabNonce)
+  const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
 
   useEffect(() => {
     if (workspaceId !== visibleWorkspaceId) return
     if (worktreeNonce <= lastWorktreePaletteNonceHandled) return
     lastWorktreePaletteNonceHandled = worktreeNonce
+    if (useClaudeCodeCliStore.getState().installed !== true) return
     setWorktreeDialogFirst(tabs.length === 0)
     setWorktreeOpen(true)
   }, [worktreeNonce, workspaceId, visibleWorkspaceId, tabs.length])
@@ -84,6 +88,7 @@ export function AgentSessionsPanel() {
     if (workspaceId !== visibleWorkspaceId) return
     if (newAgentTabNonce <= lastNewAgentTabNonceHandled) return
     lastNewAgentTabNonceHandled = newAgentTabNonce
+    if (useClaudeCodeCliStore.getState().installed !== true) return
     useAgentTabsStore.getState().addTab(workspaceId)
   }, [newAgentTabNonce, workspaceId, visibleWorkspaceId])
 
@@ -142,7 +147,8 @@ export function AgentSessionsPanel() {
     )
   }
 
-  const newAgentPlusDisabled = !workspace?.path || repoKind === 'loading'
+  const canCreateAgents = claudeInstalled === true
+  const newAgentPlusDisabled = !workspace?.path || repoKind === 'loading' || !canCreateAgents
 
   const resolvedTabId =
     tabs.length === 0
@@ -221,6 +227,40 @@ export function AgentSessionsPanel() {
         <p className="text-sm text-muted-foreground">Select a workspace to run agents.</p>
       ) : repoKind === 'loading' ? (
         <p className="text-sm text-muted-foreground">Checking folder…</p>
+      ) : !canCreateAgents ? (
+        claudeInstalled === null ? (
+          <p className="text-sm text-muted-foreground">Checking for Claude Code…</p>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Install Claude Code</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Agent tabs need the <span className="font-medium text-foreground">claude</span> CLI. We’ll open
+                a <span className="font-medium text-foreground">global</span> terminal and run the official
+                installer. When it finishes, use <span className="font-medium">Check again</span>.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  runClaudeCodeInstallInGlobalTerminal(workspaceId)
+                }}
+              >
+                Install Claude Code
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void useClaudeCodeCliStore.getState().refresh()}
+              >
+                Check again
+              </Button>
+            </div>
+          </>
+        )
       ) : repoKind === 'git' ? (
         <>
           <div className="space-y-1">

@@ -122,9 +122,13 @@
     @apply border-border outline-ring/50;
   }
   html,
-  body,
+  body {
+    height: 100%;
+    min-height: 0;
+  }
   #root {
     height: 100%;
+    min-height: 0;
   }
   body {
     @apply bg-background text-foreground;
@@ -134,8 +138,15 @@
   }
 }
 
+/**
+ * FitAddon measures the host height then subtracts padding from `.xterm` only — not the host’s
+ * padding. Vertical inset here keeps row count honest and leaves space above the app status bar.
+ */
 .mux-terminal-host .xterm {
+  /* box-sizing: border-box; */
   height: 100%;
+  /* padding-top: 4px; */
+  /* padding-bottom: 4px; */
 }
 .mux-terminal-host .xterm-viewport {
   width: 100%;

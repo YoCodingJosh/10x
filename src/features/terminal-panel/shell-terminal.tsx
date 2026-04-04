@@ -2,6 +2,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 
+import { useAppWideTerminalsStore } from '@/stores/app-wide-terminals-store'
+
 import '@xterm/xterm/css/xterm.css'
 
 function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown = false): boolean {
@@ -13,10 +15,12 @@ function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown 
 export type ShellTerminalProps = {
   sessionId: string
   cwd: string
+  /** One-time stdin after the shell is ready (e.g. installer command). */
+  runAfterSpawn?: string
 }
 
 /** Login shell bound to a stable PTY session id; parent can keep instances mounted (hidden) to preserve sessions. */
-export function ShellTerminal({ sessionId, cwd }: ShellTerminalProps) {
+export function ShellTerminal({ sessionId, cwd, runAfterSpawn }: ShellTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -103,6 +107,15 @@ export function ShellTerminal({ sessionId, cwd }: ShellTerminalProps) {
 
       fit.fit()
       window.mux.pty.resize(sessionId, Math.max(term.cols, 2), Math.max(term.rows, 1))
+
+      const queued = useAppWideTerminalsStore.getState().takeBootstrapForSession(sessionId)
+      const toRun = queued ?? runAfterSpawn
+      if (toRun) {
+        const payload = toRun.endsWith('\n') ? toRun : `${toRun}\n`
+        window.setTimeout(() => {
+          window.mux.pty.write(sessionId, payload)
+        }, 250)
+      }
     })()
 
     return () => {
@@ -115,19 +128,12 @@ export function ShellTerminal({ sessionId, cwd }: ShellTerminalProps) {
       term.dispose()
       container.replaceChildren()
     }
-  }, [sessionId, cwd])
+  }, [sessionId, cwd, runAfterSpawn])
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div
-        ref={containerRef}
-        className="mux-terminal-host relative min-h-0 min-w-0 flex-1 overflow-hidden px-1 py-0.5 [&_.xterm]:!h-full [&_.xterm-viewport]:!w-full"
-      />
-      {bootError ? (
-        <p className="shrink-0 border-t border-border px-2 py-1 text-[11px] text-destructive">
-          {bootError}
-        </p>
-      ) : null}
+    <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
+      <div ref={containerRef} className="mux-terminal-host relative min-h-0 min-w-0 flex-1 basis-0 overflow-hidden px-1" />
+      {bootError ? <p className="shrink-0 border-t border-border px-2 py-1 text-[11px] text-destructive">{bootError}</p> : null}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 import { useAgentTabCloseIntentStore } from '@/stores/agent-tab-close-intent-store'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useAppWideTerminalsStore } from '@/stores/app-wide-terminals-store'
 import { useGlobalTerminalsStore } from '@/stores/global-terminals-store'
 import { useWorktreeTerminalsStore, worktreeTerminalsKey } from '@/stores/worktree-terminals-store'
 import { scheduleFocusMuxXtermForTyping } from '@/lib/focus-mux-xterm'
@@ -38,10 +39,24 @@ export function CloseTabShortcutBridge() {
         if (isNonTerminalTextField(activeEl)) return
         e.preventDefault()
         const visibleId = getVisibleWorkspaceId()
-        if (!visibleId) return
-
         const panel = document.getElementById('mux-terminal-panel')
-        const scope = panel?.dataset.muxTerminalScope === 'agent' ? 'agent' : 'project'
+        const raw = panel?.dataset.muxTerminalScope
+        const scope =
+          raw === 'agent' ? 'agent' : raw === 'global' ? 'global' : 'project'
+
+        const closeAppWideActive = () => {
+          const aw = useAppWideTerminalsStore.getState()
+          const active = aw.activeShellId
+          if (aw.shells.length > 0 && active) {
+            aw.removeShell(active)
+            scheduleFocusMuxXtermForTyping('#mux-terminal-panel')
+          }
+        }
+
+        if (!visibleId || scope === 'global') {
+          closeAppWideActive()
+          return
+        }
 
         if (scope === 'project') {
           const g = useGlobalTerminalsStore.getState()

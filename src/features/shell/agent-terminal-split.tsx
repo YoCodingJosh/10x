@@ -81,10 +81,10 @@ export function AgentTerminalSplit() {
   return (
     <div
       ref={containerRef}
-      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       <div
-        className="flex min-h-0 min-w-0 flex-col"
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden"
         style={{ flex: `${agentFlex} 1 0px`, minHeight: 120 }}
       >
         <WorkspaceAgentDesk />
@@ -108,7 +108,7 @@ export function AgentTerminalSplit() {
         }}
       />
       <div
-        className="flex min-h-0 min-w-0 flex-col"
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden"
         style={{ flex: `${terminalFraction} 1 0px`, minHeight: 120 }}
       >
         <TerminalPanel />

@@ -11,6 +11,8 @@ import { registerGitIpc } from './git-ipc'
 import { loadEnvFromAppRoot } from './load-env'
 import { killAllPtySessions, registerPtyIpc } from './pty-manager'
 import { registerShellIpc } from './shell-ipc'
+import { registerAppIpc } from './app-ipc'
+import { registerClaudeCodeCliIpc } from './claude-code-cli'
 import { registerUpdaterIpc } from './updater-ipc'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -96,12 +98,14 @@ ipcMain.handle(
   },
 )
 
+registerAppIpc()
 registerPtyIpc()
 registerAgentAttentionIpc()
 registerGitIpc()
 registerGithubIpc()
 registerShellIpc()
 registerUpdaterIpc()
+registerClaudeCodeCliIpc()
 
 ipcMain.handle('dialog:pickWorkspace', async (event) => {
   const parent =

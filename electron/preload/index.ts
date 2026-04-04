@@ -128,6 +128,9 @@ type GitCommitInspectResult =
   | { ok: false; error: string }
 
 const api = {
+  app: {
+    getHomeDir: (): Promise<string> => ipcRenderer.invoke('app:getHomeDir'),
+  },
   store: {
     getWorkspaces: (): Promise<WorkspaceEntry[]> =>
       ipcRenderer.invoke('store:get', 'workspaces'),
@@ -216,6 +219,9 @@ const api = {
     openDeviceHelp: (): Promise<{ ok: true }> => ipcRenderer.invoke('github:openDeviceHelp'),
     getCreatePrContext: (cwd: string): Promise<GithubCreatePrContext> =>
       ipcRenderer.invoke('github:getCreatePrContext', cwd),
+  },
+  claudeCode: {
+    isCliInstalled: (): Promise<boolean> => ipcRenderer.invoke('claudeCode:isCliInstalled'),
   },
   agent: {
     onStateChange: (

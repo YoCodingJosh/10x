@@ -2,6 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 
+import { CLAUDE_CODE_INSTALL_URL } from '@/lib/claude-code-install'
 import { useWorkspaceById } from '@/features/workspaces/hooks/use-workspace-by-id'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
 
@@ -21,17 +22,7 @@ function shouldIgnoreExitMessage(exitCode: number, signal?: number, tearingDown 
 }
 
 /** PTY + xterm live here only so `sessionId` never appears in the parent render path (React Compiler–safe). */
-function ClaudeAgentTerminal({
-  workspaceId,
-  tabId,
-  cwd,
-  label,
-}: {
-  workspaceId: string
-  tabId: string
-  cwd: string
-  label: string
-}) {
+function ClaudeAgentTerminal({ workspaceId, tabId, cwd, label }: { workspaceId: string; tabId: string; cwd: string; label: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tearingDownRef = useRef(false)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -98,9 +89,7 @@ function ClaudeAgentTerminal({
       if (!created.ok) {
         setBootError(created.error)
         term.writeln(`\r\n\x1b[31mCould not start Claude Code: ${created.error}\x1b[0m`)
-        term.writeln(
-          '\r\nInstall the CLI (https://docs.anthropic.com/claude-code) and ensure `claude` is on your PATH.',
-        )
+        term.writeln(`\r\nInstall the CLI (${CLAUDE_CODE_INSTALL_URL}) and ensure \`claude\` is on your PATH.`)
         return
       }
 
@@ -139,15 +128,8 @@ function ClaudeAgentTerminal({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div
-        ref={containerRef}
-        className="mux-terminal-host relative min-h-0 min-w-0 flex-1 basis-0 overflow-hidden px-1 py-1 [&_.xterm]:!h-full [&_.xterm-viewport]:!w-full"
-      />
-      {bootError ? (
-        <p className="shrink-0 border-t border-border px-2 py-1 text-[11px] text-destructive">
-          {bootError}
-        </p>
-      ) : null}
+      <div ref={containerRef} className="mux-terminal-host relative min-h-0 min-w-0 flex-1 basis-0 overflow-hidden px-1" />
+      {bootError ? <p className="shrink-0 border-t border-border px-2 py-1 text-[11px] text-destructive">{bootError}</p> : null}
     </div>
   )
 }
@@ -156,18 +138,14 @@ export function ClaudeSessionPane() {
   const tabId = useAgentTabId()
   const workspaceId = useWorkspaceSessionScope()
   const workspace = useWorkspaceById(workspaceId)
-  const tab = useAgentTabsStore(
-    (s) => s.byWorkspaceId[workspaceId]?.tabs.find((t) => t.id === tabId) ?? null,
-  )
+  const tab = useAgentTabsStore((s) => s.byWorkspaceId[workspaceId]?.tabs.find((t) => t.id === tabId) ?? null)
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted-foreground">
         {tab?.label ?? 'Agent'}
         {workspace ? (
-          <span className="ml-2 font-mono text-[11px] text-foreground/80">
-            — {workspace.label}
-          </span>
+          <span className="ml-2 font-mono text-[11px] text-foreground/80">— {workspace.label}</span>
         ) : (
           <span className="ml-2 text-amber-200/80">— add a workspace to run Claude</span>
         )}

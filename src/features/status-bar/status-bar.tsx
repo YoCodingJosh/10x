@@ -29,7 +29,7 @@ export function StatusBar() {
 
   return (
     <footer
-      className="flex h-[22px] shrink-0 items-center gap-2 border-t border-border bg-muted/30 px-2 text-[11px] text-muted-foreground"
+      className="relative z-30 flex h-[22px] shrink-0 items-center gap-2 border-t border-border bg-muted/30 px-2 text-[11px] text-muted-foreground"
       role="status"
       aria-live="polite"
       aria-label="Background tasks"

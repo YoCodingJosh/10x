@@ -7,12 +7,14 @@ import { WorkspaceFetchOnChangeBridge } from '@/features/git/workspace-fetch-on-
 import { StatusBar } from '@/features/status-bar/status-bar'
 
 import { SidePanelSplit } from '@/features/side-panel/side-panel-split'
+import { ClaudeCodeCliProbeBridge } from '@/features/shell/claude-code-cli-probe-bridge'
 import { UpdateLaunchToastBridge } from '@/features/shell/update-launch-toast-bridge'
 import { WorkspaceSync } from './workspace-sync'
 
 export function AppShell() {
   return (
     <>
+      <ClaudeCodeCliProbeBridge />
       <UpdateLaunchToastBridge />
       <WorkspaceSync />
       <GitFocusedCheckoutBridge />
@@ -20,8 +22,8 @@ export function AppShell() {
       <CommandPaletteRoot />
       <CloseTabShortcutBridge />
       <AgentCreateShortcutsBridge />
-      <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-        <div className="flex min-h-0 flex-1">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <ActivityBar />
           <SidePanelSplit />
         </div>

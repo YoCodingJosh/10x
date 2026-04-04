@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type TerminalScope = 'project' | 'agent'
+export type TerminalScope = 'global' | 'project' | 'agent'
 
 const STORAGE_KEY = 'mux.terminalScopeByWorkspace'
 
@@ -12,7 +12,9 @@ function readFromStorage(): Record<string, TerminalScope> {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
     const out: Record<string, TerminalScope> = {}
     for (const [k, v] of Object.entries(parsed)) {
-      if (v === 'project' || v === 'agent') out[k] = v
+      if (v === 'global' || v === 'project' || v === 'agent') {
+        out[k] = v
+      }
     }
     return out
   } catch {

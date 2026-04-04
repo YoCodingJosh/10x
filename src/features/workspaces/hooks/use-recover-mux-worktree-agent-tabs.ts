@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from 'react'
 
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
 /**
@@ -9,6 +10,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
  */
 export function useRecoverMuxWorktreeAgentTabs() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
   const signature = useMemo(
     () => workspaces.map((w) => `${w.id}:${w.path}`).join('|'),
     [workspaces],
@@ -16,6 +18,7 @@ export function useRecoverMuxWorktreeAgentTabs() {
 
   useLayoutEffect(() => {
     if (workspaces.length === 0) return
+    if (claudeInstalled !== true) return
 
     let cancelled = false
 
@@ -59,5 +62,5 @@ export function useRecoverMuxWorktreeAgentTabs() {
     return () => {
       cancelled = true
     }
-  }, [signature, workspaces.length])
+  }, [signature, workspaces.length, claudeInstalled])
 }

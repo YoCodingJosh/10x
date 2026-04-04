@@ -1,6 +1,9 @@
 declare global {
   interface Window {
     mux: {
+      app: {
+        getHomeDir: () => Promise<string>
+      }
       store: {
         getWorkspaces: () => Promise<{ id: string; path: string; label: string }[]>
         setWorkspaces: (workspaces: { id: string; path: string; label: string }[]) => Promise<boolean>
@@ -130,6 +133,10 @@ declare global {
         getCreatePrContext: (
           cwd: string,
         ) => Promise<{ applicable: false } | { applicable: true; hasOpenPr: boolean; hasMergedPr: boolean; compareUrl: string }>
+      }
+      claudeCode: {
+        /** Resolves after probing PATH (and common install locations) from the main process. */
+        isCliInstalled: () => Promise<boolean>
       }
       agent: {
         onStateChange: (handler: (payload: { sessionId: string; state: string }) => void) => () => void

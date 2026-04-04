@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+import { useTerminalScopeStore } from '@/stores/terminal-scope-store'
+
 export type GlobalShellTab = { id: string; label: string }
 
 type State = {
@@ -19,6 +21,7 @@ export const useGlobalTerminalsStore = create<State>((set, get) => ({
   activeShellId: {},
 
   addShell: (workspaceId) => {
+    useTerminalScopeStore.getState().setScope(workspaceId, 'project')
     const list = get().byWorkspaceId[workspaceId] ?? []
     const tab: GlobalShellTab = {
       id: crypto.randomUUID(),

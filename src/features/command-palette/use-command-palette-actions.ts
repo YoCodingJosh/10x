@@ -7,6 +7,7 @@ import { usePersistWorkspacesMutation } from '@/features/workspaces/hooks/use-wo
 import { useVisibleWorkspaceId } from '@/features/workspaces/hooks/use-visible-workspace-id'
 import { runWithStatusActivity } from '@/lib/status/run-with-status-activity'
 import { useAgentTabsStore } from '@/stores/agent-tabs-store'
+import { useClaudeCodeCliStore } from '@/stores/claude-code-cli-store'
 import { useCommandPaletteIntentsStore } from '@/stores/command-palette-intents-store'
 import { useGitFocusedCheckoutStore } from '@/stores/git-focused-checkout-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
@@ -38,6 +39,7 @@ export function useCommandPaletteActions(): {
   const requestCommit = useCommandPaletteIntentsStore((s) => s.requestCommitDialog)
   const requestPublish = useCommandPaletteIntentsStore((s) => s.requestPublishDialog)
   const requestWorktree = useCommandPaletteIntentsStore((s) => s.requestWorktreeDialog)
+  const claudeInstalled = useClaudeCodeCliStore((s) => s.installed)
   const fileManagerLabel = isMacPlatform()
     ? 'Open active workspace in Finder'
     : 'Open active workspace in file manager'
@@ -73,7 +75,7 @@ export function useCommandPaletteActions(): {
       },
     ]
 
-    if (visibleWorkspaceId) {
+    if (visibleWorkspaceId && claudeInstalled === true) {
       out.push(
         {
           id: 'agent.new',
@@ -159,7 +161,7 @@ export function useCommandPaletteActions(): {
     }
 
     return out
-  }, [cwd, fileManagerLabel, wtAligned, muxFollowUp, visibleWorkspaceId])
+  }, [cwd, fileManagerLabel, wtAligned, muxFollowUp, visibleWorkspaceId, claudeInstalled])
 
   const run = useCallback(
     async (id: string) => {
@@ -210,10 +212,12 @@ export function useCommandPaletteActions(): {
         }
         case 'agent.new': {
           if (!visibleWorkspaceId) return
+          if (useClaudeCodeCliStore.getState().installed !== true) return
           useAgentTabsStore.getState().addTab(visibleWorkspaceId)
           return
         }
         case 'agent.worktree': {
+          if (useClaudeCodeCliStore.getState().installed !== true) return
           requestWorktree()
           return
         }
@@ -303,6 +307,7 @@ export function useCommandPaletteActions(): {
       requestCommit,
       requestPublish,
       requestWorktree,
+      claudeInstalled,
     ],
   )
 
